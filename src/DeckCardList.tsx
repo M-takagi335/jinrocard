@@ -1,4 +1,4 @@
-import { Art } from './CardTile.tsx'
+import { Art, CardCategory } from './CardTile.tsx'
 import { card, ROLES, type Role } from './cards.ts'
 
 export function DeckCardList({ cards, onInspect }: { cards: readonly Role[]; onInspect: (role: Role) => void }) {
@@ -15,6 +15,7 @@ export function DeckCardList({ cards, onInspect }: { cards: readonly Role[]; onI
             </button>
             <div>
               <strong>{spec.name} <span>×{count}</span></strong>
+              <CardCategory category={spec.category} />
               <p>{spec.text}</p>
             </div>
           </li>

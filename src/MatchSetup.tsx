@@ -1,6 +1,6 @@
-import { useRef } from 'react'
+import { useState } from 'react'
 import { DeckCardList } from './DeckCardList.tsx'
-import { card, ROLES, type Role } from './cards.ts'
+import { card, ROLES, RULES, type Role } from './cards.ts'
 import { deckCardsError, type MatchDeck } from './decks.ts'
 import { DECK_TYPES, PROFILES, type DeckType } from './generateDeck.ts'
 import { Sheet } from './Sheet.tsx'
@@ -13,7 +13,7 @@ function entriesFor(deck: MatchDeck) {
 }
 
 export function MatchSetup({ options, selectedId, onSelect, npcType, onNpcType, onStart, onInspect,
-  onClose, error, issues, onGenerate, onBuild }: {
+  onClose, error, issues, onGenerate }: {
   options: MatchDeck[]
   selectedId: string
   onSelect: (id: string) => void
@@ -24,10 +24,9 @@ export function MatchSetup({ options, selectedId, onSelect, npcType, onNpcType, 
   onClose: () => void
   error: string
   issues: string[]
-  onGenerate: () => void
-  onBuild: () => void
+  onGenerate: (type: DeckType, label: string) => void
 }) {
-  const library = useRef<HTMLUListElement>(null)
+  const [showTypes, setShowTypes] = useState(selectedId.startsWith('quick:'))
   const selected = options.find(deck => deck.id === selectedId)
   const problem = selected ? deckCardsError(selected.cards) : '使用するデッキを選択してください。'
   return (
@@ -44,16 +43,6 @@ export function MatchSetup({ options, selectedId, onSelect, npcType, onNpcType, 
         </button>
       </div>}
     >
-      <nav className="match-methods" aria-label="デッキの選び方">
-        <button className="primary" onClick={onGenerate}>おまかせデッキ</button>
-        <button className="quiet" onClick={() => {
-          const list = library.current
-          list?.scrollIntoView({ block: 'nearest' })
-          const first = list?.querySelector<HTMLButtonElement>('[data-saved="true"]') ?? list?.querySelector('button')
-          first?.focus()
-        }}>保存済みデッキ</button>
-        <button className="quiet" onClick={onBuild}>自分でデッキを作る</button>
-      </nav>
       <div className="match-layout">
         <div>
           <label className="npc-deck-type">対戦相手のデッキ
@@ -63,13 +52,20 @@ export function MatchSetup({ options, selectedId, onSelect, npcType, onNpcType, 
             </select>
           </label>
           <h3>自分のデッキ</h3>
-          <ul className="match-options" ref={library}>
-            {options.map(deck => (
+          <div className="match-quick">
+            <button className="quiet" aria-expanded={showTypes} onClick={() => setShowTypes(value => !value)}>おまかせデッキ</button>
+            {showTypes && <div className="match-types" aria-label="デッキタイプ">
+              {DECK_TYPES.map(type => <button key={type} className="quiet" aria-pressed={selectedId === 'quick:' + type}
+                onClick={() => onGenerate(type, PROFILES[type].label)}>{PROFILES[type].label}</button>)}
+            </div>}
+          </div>
+          <ul className="match-options">
+            {options.filter(deck => deck.source !== 'おまかせ').map(deck => (
               <li key={deck.id}>
-                <button className="quiet match-option" data-saved={deck.source === '保存済み'} aria-pressed={deck.id === selectedId} onClick={() => onSelect(deck.id)}>
-                  <strong>{deck.name}</strong>
+                <button className="quiet match-option" disabled={!!deckCardsError(deck.cards)} aria-pressed={deck.id === selectedId} onClick={() => onSelect(deck.id)}>
+                  <strong>{deck.source === '編集中' ? '編集中のデッキ' : deck.name}</strong>
                   <span>{deck.source} · {deck.cards.length}枚</span>
-                  <small>{entriesFor(deck).sort((a, b) => b.count - a.count).slice(0, 3)
+                  <small>{deckCardsError(deck.cards) ? (deck.cards.length < RULES.deckSize ? 'あと' + (RULES.deckSize - deck.cards.length) + '枚必要です。' : deckCardsError(deck.cards)) : entriesFor(deck).sort((a, b) => b.count - a.count).slice(0, 3)
                     .map(({ role }) => card(role).name).join('・') || 'カードなし'}</small>
                 </button>
               </li>

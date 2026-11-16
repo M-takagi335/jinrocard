@@ -21,7 +21,7 @@ export function deckCardsError(cards: unknown): string | null {
   return null
 }
 
-export type MatchDeck = NamedDeck & { id: string; source: '標準' | '編集中' | '保存済み' }
+export type MatchDeck = NamedDeck & { id: string; source: '標準' | '編集中' | '保存済み' | 'おまかせ' }
 
 export function matchDecks(draft: Role[], draftName: string, saved: SavedDeck[]): MatchDeck[] {
   return [

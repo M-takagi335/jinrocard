@@ -3,6 +3,10 @@ import { card, CARD_SUMMARY, CATEGORY, type Role } from './cards.ts'
 
 const reported = new Set<string>()
 
+export function CardCategory({ category }: { category: keyof typeof CATEGORY }) {
+  return <span className={'card-type ' + category}>{CATEGORY[category]}</span>
+}
+
 export function Art({ role, eager = false }: { role: Role; eager?: boolean }) {
   const spec = card(role)
   return <RoleImage key={role} name={spec.name} path={spec.imagePath} eager={eager} />
@@ -48,7 +52,7 @@ export function CardTile({ role, selected = false, disabled = false, onClick, on
   const body = (
     <>
       <Art role={role} />
-      {!compact && <span className="card-type">{CATEGORY[spec.category]}</span>}
+      <CardCategory category={spec.category} />
       <span className="card-caption">
         <span className="card-name">{spec.name}</span>
         {compact && <span className="compact-effect">{CARD_SUMMARY[role]}</span>}

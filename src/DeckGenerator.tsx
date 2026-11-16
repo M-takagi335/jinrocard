@@ -5,29 +5,21 @@ import { deckNameLimit, type NamedDeck } from './decks.ts'
 import { DECK_TYPES, PROFILES, generateDecks, type DeckType, type GeneratedDeck } from './generateDeck.ts'
 import { Sheet } from './Sheet.tsx'
 
-export type QuickEntry = GeneratedDeck & { saved?: boolean }
 type Props = {
   usedNames: string[]
   onClose: () => void
   onInspect: (role: Role) => void
-  onUse: (deck: NamedDeck) => void
   onEdit: (deck: NamedDeck) => void
   onSave: (decks: NamedDeck[]) => boolean
-  quick?: {
-    active?: DeckType
-    entries: Partial<Record<DeckType, QuickEntry>>
-    onReady: (deck: QuickEntry) => void
-  }
 }
 
-export function DeckGenerator({ usedNames, onClose, onInspect, onUse, onEdit, onSave, quick }: Props) {
-  const initial = quick?.active ? quick.entries[quick.active] : undefined
+export function DeckGenerator({ usedNames, onClose, onInspect, onEdit, onSave }: Props) {
   const [size, setSize] = useState<1 | 3 | 5 | 10>(1)
-  const [types, setTypes] = useState<DeckType[]>([initial?.type ?? 'balanced'])
-  const [results, setResults] = useState<GeneratedDeck[]>(initial ? [initial] : [])
-  const [choosing, setChoosing] = useState(!initial)
+  const [types, setTypes] = useState<DeckType[]>(['balanced'])
+  const [results, setResults] = useState<GeneratedDeck[]>([])
+  const [choosing, setChoosing] = useState(true)
   const [selected, setSelected] = useState(0)
-  const [savedIndices, setSavedIndices] = useState<number[]>(initial?.saved && usedNames.includes(initial.name) ? [0] : [])
+  const [savedIndices, setSavedIndices] = useState<number[]>([])
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
   const [replace, setReplace] = useState(false)
@@ -40,10 +32,10 @@ export function DeckGenerator({ usedNames, onClose, onInspect, onUse, onEdit, on
     sectionTitle.current?.focus()
   }, [choosing, results.length, selected])
 
-  function showResults(decks: GeneratedDeck[], saved: number[] = []) {
+  function showResults(decks: GeneratedDeck[]) {
     setResults(decks)
     setSelected(0)
-    setSavedIndices(saved)
+    setSavedIndices([])
     setChoosing(false)
     setError('')
     setMessage('')
@@ -54,24 +46,12 @@ export function DeckGenerator({ usedNames, onClose, onInspect, onUse, onEdit, on
       if (requested.length > size) throw new Error('作成数以下のタイプを選択してください。')
       const candidates = generateDecks(requested, size, usedNames, results)
       showResults(candidates)
-      quick?.onReady(candidates[0])
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : 'デッキを作成できませんでした。')
     }
   }
 
   function selectType(type: DeckType) {
-    if (quick) {
-      setTypes([type])
-      const existing = quick.entries[type]
-      if (existing) {
-        showResults([existing], existing.saved && usedNames.includes(existing.name) ? [0] : [])
-        quick.onReady(existing)
-      } else {
-        generate([type])
-      }
-      return
-    }
     setTypes(previous => {
       if (size === 1) return [type]
       return previous.includes(type) ? previous.filter(item => item !== type) : [...previous, type]
@@ -103,55 +83,47 @@ export function DeckGenerator({ usedNames, onClose, onInspect, onUse, onEdit, on
     setNaming([])
     setError('')
     setMessage(updates.length + '件のデッキを保存しました。')
-    quick?.onReady({ ...updates[0], saved: true })
   }
 
   return (
     <>
-      <Sheet title={quick ? 'おまかせデッキ' : 'おまかせ作成'} className={quick ? 'quick-generator' : undefined}
-        onClose={onClose} footer={!choosing && current && (
-          <button className="primary" onClick={() => onUse(current)}>このデッキでNPC戦</button>
-        )}>
+      <Sheet title="おまかせ作成" onClose={onClose}>
         <div className="generator">
           {choosing ? (
             <>
-              {!quick && (
-                <>
-                  <h3>作成方法</h3>
-                  <div className="generator-buttons" aria-label="作成方法">
-                    <button className="quiet" aria-pressed={size === 1} onClick={() => {
-                      setSize(1)
-                      setTypes(types.slice(0, 1))
+              <h3>作成方法</h3>
+              <div className="generator-buttons" aria-label="作成方法">
+                <button className="quiet" aria-pressed={size === 1} onClick={() => {
+                  setSize(1)
+                  setTypes(types.slice(0, 1))
+                  setError('')
+                }}>1つ作成</button>
+                <button className="quiet" aria-pressed={size !== 1} onClick={() => {
+                  if (size === 1) setSize(3)
+                  setError('')
+                }}>まとめて作成</button>
+              </div>
+              {size !== 1 && (
+                <div className="generator-buttons" aria-label="作成するデッキ数">
+                  {([3, 5, 10] as const).map(count => (
+                    <button key={count} className="quiet" aria-pressed={size === count} onClick={() => {
+                      setSize(count)
                       setError('')
-                    }}>1つ作成</button>
-                    <button className="quiet" aria-pressed={size !== 1} onClick={() => {
-                      if (size === 1) setSize(3)
-                      setError('')
-                    }}>まとめて作成</button>
-                  </div>
-                  {size !== 1 && (
-                    <div className="generator-buttons" aria-label="作成するデッキ数">
-                      {([3, 5, 10] as const).map(count => (
-                        <button key={count} className="quiet" aria-pressed={size === count} onClick={() => {
-                          setSize(count)
-                          setError('')
-                        }}>{count}個</button>
-                      ))}
-                    </div>
-                  )}
-                </>
+                    }}>{count}個</button>
+                  ))}
+                </div>
               )}
               <h3 tabIndex={-1} ref={sectionTitle}>デッキタイプ</h3>
               <div className="generator-types">
                 {DECK_TYPES.map(type => (
-                  <button key={type} className="quiet" aria-pressed={quick ? undefined : types.includes(type)} onClick={() => selectType(type)}>
+                  <button key={type} className="quiet" aria-pressed={types.includes(type)} onClick={() => selectType(type)}>
                     <strong>{PROFILES[type].label}</strong>
-                    {!quick && <span>{PROFILES[type].description}</span>}
+                    <span>{PROFILES[type].description}</span>
                   </button>
                 ))}
               </div>
               <div className="generator-buttons">
-                {!quick && <button className="primary" onClick={requestGenerate}>生成する</button>}
+                <button className="primary" onClick={requestGenerate}>生成する</button>
                 {!!results.length && <button className="quiet" onClick={() => { setChoosing(false); setError('') }}>前の結果に戻る</button>}
               </div>
             </>
