@@ -2,13 +2,14 @@ import { useEffect, useReducer, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { card, CATEGORY, NPC_DECK, ROLES, RULES, STARTER, validDeck, type Role } from './cards.ts'
 import { Duel, type Instance, type Play, type Side } from './duel.ts'
-import { deckNameLimit, exportDeck, importDeck, loadSavedDecks, storeSavedDecks, type NamedDeck, type SavedDeck } from './decks.ts'
+import { deckCardsError, deckNameLimit, exportDeck, importDeck, inspectSavedDecks, loadSavedDecks, matchDecks, storeSavedDecks, type MatchDeck, type NamedDeck, type SavedDeck } from './decks.ts'
 import { CardTile } from './CardTile.tsx'
 import { CardDetail } from './CardDetail.tsx'
 import { DeckViewer } from './DeckViewer.tsx'
 import { InvestigationPanel } from './InvestigationPanel.tsx'
 import { DeckGenerator } from './DeckGenerator.tsx'
-import { DECK_TYPES, PROFILES, generateDeck, type DeckType } from './generateDeck.ts'
+import { MatchSetup } from './MatchSetup.tsx'
+import { generateDeck, type DeckType } from './generateDeck.ts'
 import { DeckComposition, Sheet } from './Sheet.tsx'
 import { AssassinPrediction } from './AssassinPrediction.tsx'
 import './style.css'
@@ -23,11 +24,11 @@ function newDeckId() {
     byte.toString(16).padStart(2, '0')).join('')
 }
 
-function readLibrary(): SavedDeck[] {
+function readLibrary(): { decks: SavedDeck[]; issues: string[] } {
   try {
-    return loadSavedDecks(localStorage)
+    return inspectSavedDecks(localStorage)
   } catch {
-    return []
+    return { decks: [], issues: ['保存データを読み込めませんでした。標準デッキで対戦できます。'] }
   }
 }
 
@@ -46,7 +47,8 @@ function CardLog({ text, onInspect }: { text: string; onInspect: (role: Role) =>
 
 function App() {
   const [deck,setDeck]=useState(loadDeck)
-  const [saved, setSaved] = useState(readLibrary)
+  const [library, setLibrary] = useState(readLibrary)
+  const saved = library.decks
   const [name, setName] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [notice, setNotice] = useState('')
@@ -54,6 +56,8 @@ function App() {
   const [battleDeck, setBattleDeck] = useState<Role[]>([])
   const [battleEnemy, setBattleEnemy] = useState<Role[]>([])
   const [npcType, setNpcType] = useState<DeckType | 'default'>('default')
+  const [battleName, setBattleName] = useState('')
+  const [matchSelection, setMatchSelection] = useState('standard')
   const [matchError, setMatchError] = useState('')
   const [filter,setFilter]=useState<string>('all')
   const [duel,setDuel]=useState<Duel|null>(null)
@@ -107,22 +111,32 @@ function App() {
     return count ? [{ role, count }] : []
   })
   const closeOverlay = () => setOverlay(null)
-  const start = (cards: Role[], enemy = NPC_DECK) => {
-    if (!validDeck(cards)) return
+  const options = overlay?.type === 'start' ? matchDecks(deck, name, saved) : []
+  const openMatchSetup = () => {
+    const entries = matchDecks(deck, name, saved)
+    setMatchSelection(id => entries.some(entry => entry.id === id) ? id : 'standard')
+    setMatchError('')
+    setOverlay({ type: 'start' })
+  }
+  const start = (cards: Role[], enemy: Role[], deckName: string) => {
+    const error = deckCardsError(cards)
+    if (error) throw new Error(error)
+    const nextDuel = new Duel(cards, enemy)
     setReadCount(0)
     setShowInvestigation(false)
     setBattleDeck([...cards])
     setBattleEnemy([...enemy])
+    setBattleName(deckName)
     setMatchError('')
     setPlays([])
     setTab('log')
-    setDuel(new Duel(cards, enemy))
+    setDuel(nextDuel)
     closeOverlay()
     window.scrollTo(0, 0)
   }
-  const startPrepared = (cards: Role[]) => {
+  const startPrepared = (selected: MatchDeck) => {
     try {
-      start(cards, npcType === 'default' ? NPC_DECK : generateDeck(npcType))
+      start(selected.cards, npcType === 'default' ? NPC_DECK : generateDeck(npcType), selected.name)
     } catch (failure) {
       setMatchError(failure instanceof Error ? failure.message : '対戦を開始できませんでした。')
     }
@@ -131,7 +145,7 @@ function App() {
     try {
       const next = update(loadSavedDecks(localStorage))
       storeSavedDecks(localStorage, next)
-      setSaved(next)
+      setLibrary(readLibrary())
       setNotice(message)
       return true
     } catch {
@@ -215,7 +229,7 @@ function App() {
         ))}</div>
       </section>}
       {!duel ? <>
-        <section className="hero"><div className="moon" aria-hidden="true"/><div className="hero-copy"><div className="eyebrow">✦　月夜の決闘</div><h1>人狼デュエル</h1><p>役職を選び、相手の手を読む。<br/>十五夜のうちに、決着をつけろ。</p><button className="primary" disabled={!validDeck(deck) && !saved.length} onClick={() => { setMatchError(''); setOverlay({ type: 'start' }) }}>NPC戦を開始 <span aria-hidden="true">→</span></button> <button className="quiet catalog-launch" onClick={() => setOverlay({ type: 'catalog' })}>カード一覧</button></div><div className="hero-index" aria-hidden="true">Ⅰ <span>／</span> ⅩⅤ</div></section>
+        <section className="hero"><div className="moon" aria-hidden="true"/><div className="hero-copy"><div className="eyebrow">✦　月夜の決闘</div><h1>人狼デュエル</h1><p>役職を選び、相手の手を読む。<br/>十五夜のうちに、決着をつけろ。</p><button className="primary" onClick={openMatchSetup}>NPC戦を開始 <span aria-hidden="true">→</span></button> <button className="quiet catalog-launch" onClick={() => setOverlay({ type: 'catalog' })}>カード一覧</button></div><div className="hero-index" aria-hidden="true">Ⅰ <span>／</span> ⅩⅤ</div></section>
         <section className="builder">
           <div className="section-title"><div><div className="eyebrow">01 / DECK BUILDER</div><h2>デッキ構築</h2></div><div className={'count '+(validDeck(deck)?'ready':'')}><strong>{deck.length}</strong> / {RULES.deckSize} 枚</div></div>
           <section className="panel deck-library" aria-label="デッキ管理">
@@ -261,7 +275,7 @@ function App() {
           <div className="catalog">{ROLES.filter(r=>filter==='all'||card(r).category===filter).map(r=><article className="deck-item" key={r}><CardTile role={r} onInspect={() => inspect(r)} /><div className="quantity"><button aria-label={card(r).name+'を減らす'} disabled={!tally(r)} onClick={()=>setDeck(d=>{const copy=[...d];copy.splice(copy.indexOf(r),1);return copy})}>−</button><span>{tally(r)} <small>/ {card(r).limit}</small></span><button aria-label={card(r).name+'を増やす'} disabled={deck.length>=RULES.deckSize||tally(r)>=card(r).limit} onClick={()=>setDeck(d=>[...d,r])}>＋</button></div></article>)}</div>
         </section>
       </>:<>
-        <div className="section-title battle-title"><div><div className="eyebrow">02 / THE DUEL</div><h1>第{duel.night}夜 <small>/ {duel.rules.finalNight}</small></h1></div><button className="quiet" disabled={!!pending} onClick={home}>{phase==='finished'?'デッキに戻る':'対戦を終了して戻る'}</button></div>
+        <div className="section-title battle-title"><div><div className="eyebrow">02 / THE DUEL</div><h1>第{duel.night}夜 <small>/ {duel.rules.finalNight}</small></h1><p className="battle-deck-name">使用デッキ：{battleName}</p></div><button className="quiet" disabled={!!pending} onClick={home}>{phase==='finished'?'デッキに戻る':'対戦を終了して戻る'}</button></div>
         <div className="fighters">{([0, 1] as const).map(side => {
           const player = duel.players[side]
           const { lost, gained } = duel.nightHpChange(side)
@@ -288,6 +302,7 @@ function App() {
           )
         })}</div>
         <div className="battle-tools">
+          <button className="quiet" disabled={!!pending} onClick={() => { home(); openMatchSetup() }}>デッキを選び直す</button>
           <button className="quiet" aria-haspopup="dialog" disabled={!!pending} onClick={() => setOverlay({ type: 'deck', side: 0 })}>自分のデッキ</button>
           <button className="quiet" aria-haspopup="dialog" disabled={!!pending} onClick={() => setOverlay({ type: 'deck', side: 1 })}>相手のデッキ</button>
           <button className="quiet" aria-haspopup="dialog" disabled={!!pending} onClick={() => setOverlay({ type: 'investigations' })}>調査記録</button>
@@ -314,7 +329,7 @@ function App() {
 
           {!pending && phase==='choice'&&duel.prompt&&<div className="choice"><h2>{duel.prompt.title}</h2><div className="duel-cards">{duel.prompt.options.map(c=><CardTile compact key={c.id} role={c.role} onClick={()=>{duel.answer(c.id);refresh()}} onInspect={() => inspect(c.role, { label: 'このカードを選択', run: () => { duel.answer(c.id); refresh() } })} />)}</div></div>}
           {!pending && phase==='end'&&<button className="primary action" onClick={()=>{duel.nextNight();refresh()}}>次の夜へ →</button>}
-          {!pending && phase==='finished'&&<div className="result" role="status"><div className="eyebrow">✦　決着</div><h2>{duel.winner==='draw'?'引き分け':duel.winner===0?'あなたの勝利':'NPCの勝利'}</h2><p>{duel.reason}　あなた {duel.players[0].hp} HP / NPC {duel.players[1].hp} HP</p><button className="primary" onClick={() => start(battleDeck, battleEnemy)}>同じデッキで再戦 →</button></div>}
+          {!pending && phase==='finished'&&<div className="result" role="status"><div className="eyebrow">✦　決着</div><h2>{duel.winner==='draw'?'引き分け':duel.winner===0?'あなたの勝利':'NPCの勝利'}</h2><p>{duel.reason}　あなた {duel.players[0].hp} HP / NPC {duel.players[1].hp} HP</p><button className="primary" onClick={() => start(battleDeck, battleEnemy, battleName)}>同じデッキで再戦 →</button></div>}
         </section><aside className="panel chronicle">
           <h2>対戦記録</h2><div className="filters tabs">{([['log','ログ'],['self','自分の捨て札'],['enemy','NPCの捨て札']] as const).map(([k,name])=><button key={k} className={k===tab?'active':''} aria-pressed={tab===k} onClick={()=>setTab(k)}>{name}</button>)}</div>
           {tab === 'log' ? (
@@ -352,29 +367,19 @@ function App() {
           usedNames={saved.map(entry => entry.name)}
           onInspect={inspect}
           onClose={closeOverlay}
-          onUse={entry => start(entry.cards)}
+          onUse={entry => start(entry.cards, NPC_DECK, entry.name)}
           onEdit={editGenerated}
           onSave={saveGenerated}
         />
       )}
       {overlay?.type === 'start' && (
-        <Sheet title="対戦デッキを選択" onClose={closeOverlay}>
-          <label className="npc-deck-type">
-            NPCのデッキ
-            <select value={npcType} onChange={event => {
-              setNpcType(event.target.value as DeckType | 'default')
-              setMatchError('')
-            }}>
-              <option value="default">標準デッキ</option>
-              {DECK_TYPES.map(type => <option key={type} value={type}>おまかせ・{PROFILES[type].label}</option>)}
-            </select>
-          </label>
-          {matchError && <p className="notice" role="alert">{matchError}</p>}
-          <div className="match-decks">
-            {validDeck(deck) && <button className="quiet" onClick={() => startPrepared(deck)}>編集中のデッキ{ name.trim() && '：' + name.trim() }</button>}
-            {saved.map(entry => <button className="quiet" key={entry.id} onClick={() => startPrepared(entry.cards)}>{entry.name}</button>)}
-          </div>
-        </Sheet>
+        <MatchSetup
+          options={options} selectedId={matchSelection}
+          onSelect={id => { setMatchSelection(id); setMatchError('') }}
+          npcType={npcType} onNpcType={type => { setNpcType(type); setMatchError('') }}
+          onStart={startPrepared} onInspect={inspect} onClose={closeOverlay}
+          error={matchError} issues={library.issues}
+        />
       )}
       {overlay?.type === 'deck' && duel && !pending && (
         <DeckViewer

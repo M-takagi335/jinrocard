@@ -220,11 +220,15 @@
   padding: 12px;
 }
 .play-area .duel-cards.hand-cards {
-  gap: 6px;
+  gap: 9px;
+  padding: 9px 5px 8px;
+  scroll-padding-inline: 5px;
+  scroll-snap-type: x proximity;
 }
 .play-area .hand-cards .compact-slot {
-  flex: 1 0 88px;
-  max-width: 112px;
+  flex: 1 0 clamp(150px, 14vw, 166px);
+  max-width: 180px;
+  scroll-snap-align: start;
 }
 .play-area .compact-slot {
   display: flex;
@@ -235,13 +239,14 @@
   flex: 1;
   align-items: center;
   gap: 4px;
-  padding: 4px;
+  padding: 0;
   aspect-ratio: auto;
   background: #181320;
+  border-color: #49313c;
 }
 .play-area .card-face.is-compact .art {
   position: static;
-  width: min(100%, 70px);
+  width: 100%;
   height: auto;
   flex-shrink: 0;
   z-index: auto;
@@ -250,19 +255,19 @@
 .play-area .card-face.is-compact .card-caption {
   position: static;
   width: 100%;
-  padding: 0;
+  padding: 2px 6px 6px;
   background: none;
-  text-align: center;
+  text-align: left;
 }
 .is-compact .card-caption .card-name {
   padding-top: 0;
-  font-size: 14px;
+  font-size: 16px;
 }
 .compact-effect {
   display: block;
   color: #e7dae8;
-  font-size: 12px;
-  line-height: 1.32;
+  font-size: 13px;
+  line-height: 1.35;
   overflow-wrap: anywhere;
 }
 .play-area .reveal-columns {
@@ -273,11 +278,28 @@
   padding-bottom: 8px;
 }
 .play-area .reveal-columns .duel-cards {
-  grid-template-columns: repeat(2, minmax(0, 92px));
+  grid-template-columns: repeat(2, minmax(0, 132px));
   gap: 5px;
 }
-.play-area .reveal-columns .is-compact .art {
-  width: min(100%, 52px);
+.play-area .card-face.is-compact:hover .art {
+  transform: none;
+}
+.play-area .card-face.is-compact.selected {
+  border-color: var(--gold);
+  box-shadow: 0 0 9px #d6a84d66;
+  transform: translateY(-4px);
+}
+.battle-deck-name {
+  font-size: 12px;
+  color: var(--gold);
+  overflow-wrap: anywhere;
+}
+.battle-tools {
+  justify-content: flex-start;
+  gap: 5px;
+}
+.battle-tools button {
+  padding-inline: 7px;
 }
 .fighter {
   padding: 10px 12px;
@@ -319,17 +341,16 @@
     margin-top: 14px;
   }
   .play-area .hand-cards .compact-slot {
-    flex-basis: 80px;
-    max-width: 94px;
+    flex: 0 0 clamp(125px, 36vw, 150px);
+    max-width: 150px;
   }
-  .play-area .hand-cards .is-compact .art {
-    width: min(100%, 56px);
+  .play-area .reveal-columns .duel-cards {
+    display: flex;
+    overflow-x: auto;
+    padding: 2px 2px 5px;
   }
-  .play-area .reveal-columns .is-compact .art {
-    width: min(100%, 42px);
-  }
-  .play-area .reveal-columns .compact-effect {
-    font-size: 11px;
+  .play-area .reveal-columns .compact-slot {
+    flex: 0 0 107px;
   }
   .fighter {
     padding: 8px;
@@ -343,5 +364,11 @@
   }
   .fighter-hp {
     font-size: 11px;
+  }
+}
+
+@media (min-width: 581px) and (max-width: 999px) {
+  .play-area .reveal-columns .duel-cards {
+    grid-template-columns: repeat(2, minmax(0, 122px));
   }
 }
