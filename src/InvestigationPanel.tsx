@@ -4,7 +4,8 @@ import type { Investigation } from './duel.ts'
 import { Sheet } from './Sheet.tsx'
 
 const titles = { seer: '占い師の透視結果', prophet: '預言者の透視結果' }
-const labels = { old: '情報が古い', used: '使用を確認' }
+const prophetLabels = { observed: '確認済み', old: '順番不明', unknown: '順番不明', drawn: 'ドロー済み', used: '使用済み' }
+const seerLabels = { observed: '確認時に所持', old: '確認時に所持・現在は不明', unknown: '現在は不明', drawn: '現在は不明', used: '使用済み' }
 
 export function InvestigationPanel({ records, onConfirm, onClose, onInspect }: {
   records: Investigation[]
@@ -26,14 +27,12 @@ export function InvestigationPanel({ records, onConfirm, onClose, onInspect }: {
         <section className="investigation-record" key={night + '-' + sourceId}>
           {!onConfirm && <h3>{titles[kind]}</h3>}
           <p className="investigation-meta">第{night}夜 · {kind === 'seer' ? '相手の残り手札' : '相手の山札（上から順）'} · {cards.length}枚</p>
-          <p className="hint">調査した時点の情報です。</p>
+          <p className="hint">{kind === 'prophet' ? '調査時の並びです。追跡できるカードには現在の位置も表示します。' : '調査した時点の情報です。'}</p>
           {cards.length === 0 ? <p>確認できるカードがありません。</p> : (
             <ul className="investigation-cards" style={{ gridTemplateColumns: 'repeat(' + cards.length + ', minmax(0, 1fr))' }}>
-              {cards.map(({ role, status }, index) => {
+              {cards.map(({ role, status, position }, index) => {
                 const spec = card(role)
-                const badge = status === 'observed'
-                  ? (kind === 'seer' ? '確認時に所持' : '確認時の山札')
-                  : labels[status]
+                const badge = (kind === 'prophet' ? prophetLabels : seerLabels)[status]
                 return (
                   <li key={index} className={'card insight-card ' + spec.category}>
                     <button className="art-inspect" aria-label={spec.name + 'を拡大'} aria-haspopup="dialog" onClick={() => onInspect(role)}>
@@ -41,10 +40,10 @@ export function InvestigationPanel({ records, onConfirm, onClose, onInspect }: {
                     </button>
                     <details open={kind === 'seer'}>
                       <summary>
-                        {kind === 'prophet' && <span className="insight-order">上から{index + 1}枚目</span>}
+                        {kind === 'prophet' && <span className="insight-order">調査時：上から{index + 1}枚目</span>}
 
                         <strong className="card-name">{spec.name}</strong>
-                        <span className={'insight-status ' + status}>{badge}</span>
+                        <span className={'insight-status ' + status}>{badge}{position !== undefined && '（現在 ' + position + '枚目）'}</span>
                         <span className="insight-detail-label">効果を見る</span>
                       </summary>
                       <p className="card-text">{spec.text}</p>

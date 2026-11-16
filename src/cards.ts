@@ -7,8 +7,8 @@ const CARD_DEFINITIONS = {
   assassin: { name:'暗殺者', category:'attack', limit:2, icon:'刃', power:4, text:'相手が出す役職を1種類予想。的中すれば特殊攻撃で4ダメージ。' },
   fox: { name:'妖狐', category:'attack', limit:2, icon:'狐', power:2, lowHp:10, boosted:4, text:'襲撃で2ダメージ。攻撃開始時に自分のHPが10以下なら4ダメージ。' },
   cat: { name:'猫又', category:'attack', limit:2, icon:'猫', power:3, text:'相手の攻撃でHPダメージを受けたとき、特殊攻撃で3ダメージを返す。' },
-  hunter: { name:'狩人', category:'guard', limit:3, icon:'弓', text:'相手からの襲撃をすべて無効化。' },
-  knight: { name:'騎士', category:'guard', limit:2, icon:'盾', power:2, text:'相手からのダメージを合計2軽減。特殊攻撃にも有効。' },
+  hunter: { name:'狩人', category:'guard', limit:3, icon:'弓', text:'この夜、相手から受ける襲撃ダメージをすべて無効化。特殊ダメージは防げない。' },
+  knight: { name:'騎士', category:'guard', limit:2, icon:'盾', power:2, text:'この夜、相手から受けるダメージを合計2軽減。特殊ダメージにも有効。' },
   witch: { name:'魔女', category:'guard', limit:2, icon:'薬', power:4, text:'HPを4回復。攻撃後にHPが0なら回復できない。' },
   trap: { name:'罠師', category:'guard', limit:2, icon:'罠', power:2, text:'相手が襲撃した場合、襲撃を無効化し、特殊攻撃で2ダメージを返す。' },
   seer: { name:'占い師', category:'intel', limit:2, icon:'瞳', power:1, text:'相手の残り手札からランダムに1枚を自分だけが確認。' },
@@ -30,6 +30,28 @@ export const CARDS = Object.fromEntries(
     id, { ...spec, imagePath: 'cards/' + encodeURIComponent(spec.name) + '.jpg' },
   ]),
 ) as Record<Role, CardData>
+export const CARD_SUMMARY: Record<Role, string> = {
+  wolf: '襲撃3ダメージ',
+  dire: '襲撃5・自傷2',
+  assassin: '役職予想が的中で特殊4',
+  fox: '襲撃2。自分HP10以下で4',
+  cat: '相手の攻撃で被弾すると特殊3反撃',
+  hunter: '襲撃をすべて防ぐ',
+  knight: '夜のダメージを合計2軽減',
+  witch: '生存時にHP4回復',
+  trap: '襲撃を防ぎ特殊2で反撃',
+  seer: '相手の残り手札を最大1枚見る',
+  prophet: '相手の山札の上から最大3枚を見る',
+  spy: '相手が攻撃カードを出せば1枚引く',
+  jester: '相手が攻撃カードを出さなければ2枚引く',
+  medium: '自分の捨て札1枚を手札へ',
+  keeper: '自分の捨て札1枚を山札の一番上へ',
+  mason: '2枚引き、手札を1枚捨てる',
+  merchant: 'HPを2失い、生存なら3枚引く',
+  mad: '相手が2枚出せばランダムに1枚無効',
+  curse: '相手の次の夜の回復を無効',
+  tyrant: '相手は次の夜に1枚まで',
+}
 export const ROLES = Object.keys(CARDS) as Role[]
 export const card = (role: Role) => CARDS[role]
 export const CATEGORY = { attack:'攻撃', guard:'防御・回復', intel:'情報・心理戦', supply:'回収・ドロー', hex:'妨害' }

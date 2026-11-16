@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { card, CATEGORY, type Role } from './cards.ts'
+import { card, CARD_SUMMARY, CATEGORY, type Role } from './cards.ts'
 
 const reported = new Set<string>()
 
@@ -34,7 +34,7 @@ function RoleImage({ name, path, eager }: { name: string; path: string; eager: b
   )
 }
 
-export function CardTile({ role, selected = false, disabled = false, onClick, onInspect, detail, glowing = false }: {
+export function CardTile({ role, selected = false, disabled = false, onClick, onInspect, detail, glowing = false, compact = false }: {
   role: Role
   selected?: boolean
   disabled?: boolean
@@ -42,19 +42,21 @@ export function CardTile({ role, selected = false, disabled = false, onClick, on
   onInspect?: () => void
   detail?: string
   glowing?: boolean
+  compact?: boolean
 }) {
   const spec = card(role)
   const body = (
     <>
       <Art role={role} />
-      <span className="card-type">{CATEGORY[spec.category]}</span>
+      {!compact && <span className="card-type">{CATEGORY[spec.category]}</span>}
       <span className="card-caption">
         <span className="card-name">{spec.name}</span>
+        {compact && <span className="compact-effect">{CARD_SUMMARY[role]}</span>}
         {detail && <span className="card-detail">{detail}</span>}
       </span>
     </>
   )
-  const className = ['card', 'card-face', spec.category, selected && 'selected', disabled && 'inactive', glowing && 'insight-glow'].filter(Boolean).join(' ')
+  const className = ['card', 'card-face', spec.category, compact && 'is-compact', selected && 'selected', disabled && 'inactive', glowing && 'insight-glow'].filter(Boolean).join(' ')
   const faceAction = onInspect ?? onClick
   const face = faceAction ? (
     <button type="button" className={className} onClick={faceAction}
@@ -64,7 +66,7 @@ export function CardTile({ role, selected = false, disabled = false, onClick, on
   ) : <div className={className}>{body}</div>
 
   return (
-    <div className="card-slot">
+    <div className={compact ? 'card-slot compact-slot' : 'card-slot'}>
       {face}
       {onClick && onInspect && (
         <button type="button" className="card-quick" aria-label={spec.name + (selected ? 'の選択を解除' : 'を選択')}

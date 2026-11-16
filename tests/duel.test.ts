@@ -529,3 +529,98 @@ test('standard play starts with five plus one nightly draw and caps the hand at 
   assert.ok(full.answer(full.prompt!.options[0].id))
   assert.deepEqual(full.players.map(player => player.hand.length), [7, 7])
 })
+
+test('prophet advances known positions on public draws and marks the exact public play', () => {
+  const cards: Role[] = ['prophet','knight','hunter','witch','trap','knight','wolf','wolf','mad','curse']
+  const enemy: Role[] = ['hunter','witch','knight','trap','mad','curse','wolf','witch','hunter','wolf']
+  let night = 0
+  const game = new Duel(cards, enemy, {
+    rules: { deckSize: 10 }, rng: () => .99999,
+    npc: ({ hand }) => {
+      const choice = ++night === 2 ? hand.findLast(c => c.role === 'wolf')! : hand[0]
+      return [{ id: choice.id }]
+    },
+  })
+  assert.ok(game.lock([{ id: game.players[0].hand[0].id }]))
+  game.resolve()
+  assert.deepEqual(game.investigationsFor(0)[0].cards, [
+    { role: 'wolf', status: 'observed', position: 1 },
+    { role: 'witch', status: 'observed', position: 2 },
+    { role: 'hunter', status: 'observed', position: 3 },
+  ])
+  assert.deepEqual(game.investigationsFor(1), [])
+  assert.ok(game.nextNight())
+  assert.deepEqual(game.investigationsFor(0)[0].cards, [
+    { role: 'wolf', status: 'drawn' },
+    { role: 'witch', status: 'observed', position: 1 },
+    { role: 'hunter', status: 'observed', position: 2 },
+  ])
+  assert.ok(game.lock([{ id: game.players[0].hand[0].id }]))
+  assert.equal(game.investigationsFor(0)[0].cards[0].status, 'used')
+  game.resolve()
+  for (let index = 0; index < 4; index++) {
+    assert.ok(game.nextNight())
+    while (game.prompt) assert.ok(game.answer(game.prompt.options[0].id))
+    if (index === 3) break
+    assert.ok(game.lock([{ id: game.players[0].hand[0].id }]))
+    game.resolve()
+  }
+  assert.ok(game.log.some(entry => entry.text.startsWith('NPCは捨て札をシャッフル')))
+  assert.deepEqual(game.investigationsFor(0)[0].cards, [
+    { role: 'wolf', status: 'used' },
+    { role: 'witch', status: 'unknown' },
+    { role: 'hunter', status: 'unknown' },
+  ])
+})
+
+test('public insertion invalidates known deck positions without revealing later draws', () => {
+  const { game, play } = rig(['prophet'], ['keeper'])
+  const p = game.players[1]
+  p.discard.push(p.deck.pop()!)
+  play()
+  assert.ok(game.log.some(entry => entry.text.includes('山札の一番上に戻した')))
+  const observed = game.investigationsFor(0)[0]
+  assert.equal(observed.cards.length, 3)
+  assert.ok(observed.cards.every(entry => entry.status === 'unknown' && !Object.hasOwn(entry, 'id')))
+  assert.ok(game.nextNight())
+  assert.deepEqual(game.investigationsFor(0)[0].cards, observed.cards)
+})
+
+test('night HP totals separate actual losses and healing, clamp at bounds, and reset', () => {
+  const both = rig(['witch'], ['wolf'])
+  both.game.players[0].hp = 18
+  both.play()
+  assert.equal(both.game.players[0].hp, 19)
+  assert.deepEqual(both.game.nightHpChange(0), { lost: 3, gained: 4 })
+  assert.ok(both.game.nextNight())
+  assert.deepEqual(both.game.nightHpChange(0), { lost: 0, gained: 0 })
+
+  const cappedHeal = rig(['knight', 'witch'], ['wolf'])
+  cappedHeal.play()
+  assert.equal(cappedHeal.game.players[0].hp, 20)
+  assert.deepEqual(cappedHeal.game.nightHpChange(0), { lost: 1, gained: 1 })
+
+  const lethal = rig(['wolf'], ['hunter'])
+  // A direct attack with no guard must not add damage beyond remaining HP.
+  const overkill = rig(['wolf'], ['witch'])
+  overkill.game.players[1].hp = 1
+  overkill.play()
+  assert.equal(overkill.game.phase, 'finished')
+  assert.deepEqual(overkill.game.nightHpChange(1), { lost: 1, gained: 0 })
+  lethal.play()
+  assert.deepEqual(lethal.game.nightHpChange(1), { lost: 0, gained: 0 })
+
+  const self = rig(['dire', 'merchant'], ['hunter'])
+  self.play()
+  assert.deepEqual(self.game.nightHpChange(0), { lost: 4, gained: 0 })
+  assert.deepEqual(self.game.nightHpChange(1), { lost: 0, gained: 0 })
+
+  const cancelled = rig(['witch', 'wolf'], ['mad'])
+  cancelled.game.players[0].hp = 16
+  cancelled.play()
+  assert.deepEqual(cancelled.game.nightHpChange(1), { lost: 0, gained: 0 })
+  const cancelledHeal = rig(['hunter', 'witch'], ['mad'])
+  cancelledHeal.game.players[0].hp = 16
+  cancelledHeal.play()
+  assert.deepEqual(cancelledHeal.game.nightHpChange(0), { lost: 0, gained: 0 })
+})

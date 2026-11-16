@@ -209,6 +209,7 @@ function App() {
     <header className="top"><div className="wrap top-inner"><span className="brand"><span className="sigil">◈</span> 人狼デュエル</span><span className="top-caption">WEREWOLF DUEL</span><button className="quiet" aria-expanded={rules} onClick={()=>setRules(v=>!v)}>{rules?'ルールを閉じる':'遊び方'}</button></div></header>
     <main className="wrap">
       {rules&&<section className="panel guide"><h2>遊び方</h2><p>20枚のデッキでNPCと対戦します。初期HPは20、初期手札は5枚。毎夜の開始時に1枚引き、手札から1～2枚を選んで確定すると、双方のカードが同時に公開されます。</p><p>妨害、防御、攻撃・反撃、勝敗判定、回復、ドロー・回収の順に処理します。夜終了時に手札が{RULES.handRefill}枚未満なら、{RULES.handRefill}枚になるまで補充します。手札の上限は7枚。山札が空なら捨て札を混ぜて引きます。</p><p>先にHPが0になった側が敗北。同時に0なら引き分け。第15夜の効果をすべて処理しても双方が生き残っていれば、HPが多い側の勝利です。</p>
+        <p>{card('hunter').name}：{card('hunter').text}<br/>{card('knight').name}：{card('knight').text}</p>
         <div className="guide-cards">{(['wolf', 'hunter', 'seer'] as const).map(role => (
           <CardTile key={role} role={role} onInspect={() => inspect(role)} />
         ))}</div>
@@ -261,7 +262,31 @@ function App() {
         </section>
       </>:<>
         <div className="section-title battle-title"><div><div className="eyebrow">02 / THE DUEL</div><h1>第{duel.night}夜 <small>/ {duel.rules.finalNight}</small></h1></div><button className="quiet" disabled={!!pending} onClick={home}>{phase==='finished'?'デッキに戻る':'対戦を終了して戻る'}</button></div>
-        <div className="fighters">{([0,1] as Side[]).map(i=>{const p=duel.players[i];return <div className={'panel fighter side'+i} key={i}><div className="fighter-line"><strong>{i===0?'あなた':'NPC'}</strong><span><b>{p.hp}</b> / {duel.rules.hp} HP</span></div><progress value={p.hp} max={duel.rules.hp} aria-label={(i===0?'あなた':'NPC')+'のHP'}/><div className="stats">山札 {p.deck.length}　手札 {p.hand.length}　捨て札 {p.discard.length}</div><div className="status">{p.status.noHeal&&<span>回復無効</span>}{p.status.limited&&<span>使用は1枚まで</span>}</div></div>})}</div>
+        <div className="fighters">{([0, 1] as const).map(side => {
+          const player = duel.players[side]
+          const { lost, gained } = duel.nightHpChange(side)
+          const name = side === 0 ? 'あなた' : 'NPC'
+          return (
+            <section className={'panel fighter side' + side} key={side} aria-label={name}>
+              <div className="fighter-line">
+                <strong>{name}</strong>
+                <div className="fighter-hp">
+                  <span><b>{player.hp}</b> / {duel.rules.hp} HP</span>
+                  <span className="hp-changes" aria-live="polite">
+                    {lost > 0 && <span className="hp-loss" aria-label={'今夜のHP減少 ' + lost}>−{lost}</span>}
+                    {gained > 0 && <span className="hp-gain" aria-label={'今夜のHP回復 ' + gained}>+{gained}</span>}
+                  </span>
+                </div>
+              </div>
+              <progress value={player.hp} max={duel.rules.hp} aria-label={name + 'のHP'} />
+              <div className="stats">山札 {player.deck.length}　手札 {player.hand.length}　捨て札 {player.discard.length}</div>
+              <div className="status">
+                {player.status.noHeal && <span>回復無効</span>}
+                {player.status.limited && <span>使用は1枚まで</span>}
+              </div>
+            </section>
+          )
+        })}</div>
         <div className="battle-tools">
           <button className="quiet" aria-haspopup="dialog" disabled={!!pending} onClick={() => setOverlay({ type: 'deck', side: 0 })}>自分のデッキ</button>
           <button className="quiet" aria-haspopup="dialog" disabled={!!pending} onClick={() => setOverlay({ type: 'deck', side: 1 })}>相手のデッキ</button>
@@ -269,10 +294,10 @@ function App() {
         </div>
         <div className="battle-layout"><section className="panel play-area">
           {pending && !showInvestigation && <p ref={insightCue} className="insight-cue" role="status">{pending.kind === 'seer' ? '占い師が相手の手札を透視！' : '預言者が相手の山札を透視！'}</p>}
-          {duel.revealed.some(row=>row.length>0)&&<div className={'reveal '+(phase==='reveal'?'flipping':'')} aria-label="同時公開"><div className="eyebrow">✦　同時公開</div><div className="reveal-columns">{duel.revealed.map((row,i)=><div key={i}><h3>{i===0?'あなた':'NPC'}</h3><div className="duel-cards">{row.map(c=><CardTile role={c.role} key={c.id} onInspect={() => inspect(c.role)} glowing={i===0 && pending?.kind===c.role && pending.sourceId===c.id && !showInvestigation} disabled={c.disabled} detail={c.disabled?'効果無効':c.guess?'予想：'+card(c.guess).name:undefined}/>)}{!row.length&&<p>パス</p>}</div></div>)}</div></div>}
+          {duel.revealed.some(row=>row.length>0)&&<div className={'reveal '+(phase==='reveal'?'flipping':'')} aria-label="同時公開"><div className="eyebrow">✦　同時公開</div><div className="reveal-columns">{duel.revealed.map((row,i)=><div key={i}><h3>{i===0?'あなた':'NPC'}</h3><div className="duel-cards">{row.map(c=><CardTile compact role={c.role} key={c.id} onInspect={() => inspect(c.role)} glowing={i===0 && pending?.kind===c.role && pending.sourceId===c.id && !showInvestigation} disabled={c.disabled} detail={c.disabled?'効果無効':c.guess?'予想：'+card(c.guess).name:undefined}/>)}{!row.length&&<p>パス</p>}</div></div>)}</div></div>}
           {phase==='select'&&<><div className="hand-heading"><h2>手札を選択</h2><span>{plays.length} / {duel.max(0)} 枚</span></div><p className="hint">{duel.players[0].hand.length?'カードをタップすると拡大できます。選択後に確定すると同時公開します。':'手札がないため、この夜はパスします。'}</p><div className="duel-cards hand-cards" aria-label="手札">{duel.players[0].hand.map(c => {
               const selected = plays.some(play => play.id === c.id)
-              return <CardTile key={c.id} role={c.role} selected={selected} onClick={() => toggle(c)}
+              return <CardTile compact key={c.id} role={c.role} selected={selected} onClick={() => toggle(c)}
                 onInspect={() => inspect(c.role, selected || plays.length < duel.max(0)
                   ? { label: selected ? '選択を解除' : 'このカードを選択', run: () => toggle(c) }
                   : undefined)} />
@@ -287,7 +312,7 @@ function App() {
             ))}
             <div className="hand-actions"><button className="primary action" disabled={(duel.players[0].hand.length>0&&!plays.length)||plays.some(p=>duel.players[0].hand.find(c=>c.id===p.id)?.role==='assassin'&&guessOptions.length>0&&!guessOptions.some(entry=>entry.role===p.guess))} onClick={()=>{if(duel.lock(plays)){setPlays([]);refresh()}}}>{duel.players[0].hand.length?'選択を確定':'パスを確定'} →</button></div></>}
 
-          {!pending && phase==='choice'&&duel.prompt&&<div className="choice"><h2>{duel.prompt.title}</h2><div className="duel-cards">{duel.prompt.options.map(c=><CardTile key={c.id} role={c.role} onClick={()=>{duel.answer(c.id);refresh()}} onInspect={() => inspect(c.role, { label: 'このカードを選択', run: () => { duel.answer(c.id); refresh() } })} />)}</div></div>}
+          {!pending && phase==='choice'&&duel.prompt&&<div className="choice"><h2>{duel.prompt.title}</h2><div className="duel-cards">{duel.prompt.options.map(c=><CardTile compact key={c.id} role={c.role} onClick={()=>{duel.answer(c.id);refresh()}} onInspect={() => inspect(c.role, { label: 'このカードを選択', run: () => { duel.answer(c.id); refresh() } })} />)}</div></div>}
           {!pending && phase==='end'&&<button className="primary action" onClick={()=>{duel.nextNight();refresh()}}>次の夜へ →</button>}
           {!pending && phase==='finished'&&<div className="result" role="status"><div className="eyebrow">✦　決着</div><h2>{duel.winner==='draw'?'引き分け':duel.winner===0?'あなたの勝利':'NPCの勝利'}</h2><p>{duel.reason}　あなた {duel.players[0].hp} HP / NPC {duel.players[1].hp} HP</p><button className="primary" onClick={() => start(battleDeck, battleEnemy)}>同じデッキで再戦 →</button></div>}
         </section><aside className="panel chronicle">

@@ -214,3 +214,134 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* The battle face keeps the portrait ratio and gives effect text its own space. */
+.play-area {
+  padding: 12px;
+}
+.play-area .duel-cards.hand-cards {
+  gap: 6px;
+}
+.play-area .hand-cards .compact-slot {
+  flex: 1 0 88px;
+  max-width: 112px;
+}
+.play-area .compact-slot {
+  display: flex;
+  flex-direction: column;
+}
+.play-area .card-face.is-compact {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  aspect-ratio: auto;
+  background: #181320;
+}
+.play-area .card-face.is-compact .art {
+  position: static;
+  width: min(100%, 70px);
+  height: auto;
+  flex-shrink: 0;
+  z-index: auto;
+  border-radius: 3px;
+}
+.play-area .card-face.is-compact .card-caption {
+  position: static;
+  width: 100%;
+  padding: 0;
+  background: none;
+  text-align: center;
+}
+.is-compact .card-caption .card-name {
+  padding-top: 0;
+  font-size: 14px;
+}
+.compact-effect {
+  display: block;
+  color: #e7dae8;
+  font-size: 12px;
+  line-height: 1.32;
+  overflow-wrap: anywhere;
+}
+.play-area .reveal-columns {
+  gap: 7px;
+}
+.play-area .reveal {
+  margin-bottom: 8px;
+  padding-bottom: 8px;
+}
+.play-area .reveal-columns .duel-cards {
+  grid-template-columns: repeat(2, minmax(0, 92px));
+  gap: 5px;
+}
+.play-area .reveal-columns .is-compact .art {
+  width: min(100%, 52px);
+}
+.fighter {
+  padding: 10px 12px;
+}
+.fighter-hp, .hp-changes {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.fighter-hp {
+  justify-content: flex-end;
+}
+.hp-changes > span {
+  font-size: 12px;
+  font-weight: 800;
+  padding: 1px 4px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+.hp-loss {
+  color: #ffaaa6;
+  background: #48232d;
+}
+.hp-gain {
+  color: #b6e6aa;
+  background: #233a2c;
+}
+.insight-status.drawn, .insight-status.unknown {
+  color: var(--muted);
+}
+@media (min-width: 1000px) {
+  .battle-layout {
+    grid-template-columns: minmax(0, 1fr) 220px;
+  }
+}
+@media (max-width: 580px) {
+  .battle-title {
+    margin-top: 14px;
+  }
+  .play-area .hand-cards .compact-slot {
+    flex-basis: 80px;
+    max-width: 94px;
+  }
+  .play-area .hand-cards .is-compact .art {
+    width: min(100%, 56px);
+  }
+  .play-area .reveal-columns .is-compact .art {
+    width: min(100%, 42px);
+  }
+  .play-area .reveal-columns .compact-effect {
+    font-size: 11px;
+  }
+  .fighter {
+    padding: 8px;
+  }
+  .fighter-line {
+    align-items: start;
+    gap: 4px;
+  }
+  .fighter-line b {
+    font-size: 17px;
+  }
+  .fighter-hp {
+    font-size: 11px;
+  }
+}
