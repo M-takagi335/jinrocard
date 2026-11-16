@@ -167,7 +167,7 @@ test('50 full NPC-style matches never duplicate or lose card instances',()=>{
       if(game.phase==='choice') assert.ok(game.answer(game.prompt!.options[0].id))
       else if(game.phase==='select'){
         const [p,q]=game.players
-        assert.ok(game.lock(chooseNpc({hand:p.hand,hp:p.hp,enemyHp:q.hp,max:game.max(0),noHeal:p.status.noHeal,discard:p.discard,enemyDiscard:q.discard},rng)))
+        assert.ok(game.lock(chooseNpc({hand:p.hand,hp:p.hp,enemyHp:q.hp,max:game.max(0),noHeal:p.status.noHeal,discard:p.discard,enemyDiscard:q.discard,enemyDeck:game.deckComposition(1)},rng)))
       }else if(game.phase==='reveal') game.resolve()
       else assert.ok(game.nextNight())
       for(const i of [0,1] as Side[]){
@@ -208,4 +208,86 @@ test('an empty hand is the only valid pass',()=>{
   assert.equal(game.lock([]),true)
   game.resolve()
   assert.equal(game.winner,'draw')
+})
+
+
+test('starting deck composition is public, unique, and independent of hidden zones', () => {
+  let view: import('../src/duel.ts').NpcView | undefined
+  const game = new Duel(STARTER, NPC_DECK, {
+    npc: input => {
+      view = input
+      return chooseNpc(input, () => 0)
+    },
+  })
+  assert.ok(view)
+  assert.deepEqual(view.enemyDeck, game.deckComposition(0))
+  assert.equal(Object.hasOwn(view, 'enemyHand'), false)
+  assert.equal(Object.hasOwn(view, 'enemyPlays'), false)
+  const entries = game.deckComposition(1)
+  assert.deepEqual(entries.find(entry => entry.role === 'wolf'), { role: 'wolf', count: 2 })
+  assert.ok(entries.every(entry => Object.keys(entry).length === 2))
+  assert.equal(entries.reduce((sum, entry) => sum + entry.count, 0), 20)
+  assert.equal(new Set(entries.map(entry => entry.role)).size, entries.length)
+  const [enemy] = game.players[1].hand.splice(0, 1)
+  game.players[1].discard.push(enemy)
+  assert.strictEqual(entries, game.deckComposition(1))
+})
+
+test('assassin rejects absent roles and hits once when the opponent reveals two matching cards', () => {
+  const { game } = rig(['assassin'], ['wolf', 'wolf'])
+  const id = game.players[0].hand[0].id
+  assert.equal(game.lock([{ id, guess: 'curse' }]), false)
+  assert.deepEqual(game.revealed, [[], []])
+  assert.equal(game.lock([{ id, guess: 'wolf' }]), true)
+  game.resolve()
+  assert.equal(game.players[1].hp, 16)
+  assert.equal(game.log.filter(entry => entry.text.includes('的中')).length, 1)
+  const pair = rig(['assassin'], ['hunter', 'wolf'])
+  pair.play('wolf')
+  assert.equal(pair.game.players[1].hp, 16)
+})
+
+test('NPC role guesses follow the composition of different opponents', () => {
+  for (const role of ['medium', 'jester'] as const) {
+    const game = new Duel([role], ['assassin'], {
+      rules: { deckSize: 1, opening: 1, finalNight: 1 },
+    })
+    assert.equal(game.lock([{ id: game.players[0].hand[0].id }]), true)
+    assert.equal(game.revealed[1][0].guess, role)
+    game.resolve()
+    assert.equal(game.players[0].hp, 16)
+  }
+})
+
+test('playing two repeatedly refills both hands and reuses the discard without duplicating cards', () => {
+  const deck: Role[] = ['hunter','hunter','hunter','knight','knight','witch','witch','trap','trap','seer','seer','prophet','prophet','mad','mad','curse','curse','keeper','medium','cat']
+  const game = new Duel(deck, deck, {
+    rng: () => .99999,
+    npc: view => view.hand.slice(0, 2).map(({id}) => ({id})),
+  })
+  for (let index = 0; index < 14; index++) {
+    assert.ok(game.lock(game.players[0].hand.slice(0, 2).map(({id}) => ({id}))))
+    game.resolve()
+    while (game.prompt) assert.ok(game.answer(game.prompt.options[0].id))
+    for (const player of game.players) {
+      assert.ok(player.hand.length >= 3)
+      const ids = [...player.hand, ...player.deck, ...player.discard].map(({id}) => id)
+      assert.equal(new Set(ids).size, 20)
+      assert.equal(ids.length, 20)
+    }
+    assert.ok(game.nextNight())
+  }
+  assert.ok(game.log.some(entry => entry.text.includes('夜終了時に手札を1枚補充')))
+  assert.ok(game.log.some(entry => entry.text.includes('シャッフル')))
+  assert.ok(!game.log.some(entry => entry.night === 1 && entry.text.includes('補充')))
+})
+
+test('refill is configurable and draws as many as are available after using cards', () => {
+  const game = new Duel(['hunter'], ['knight'], {
+    rules: { deckSize: 1, handRefill: 5 },
+  })
+  assert.ok(game.lock([{ id: game.players[0].hand[0].id }]))
+  game.resolve()
+  assert.deepEqual(game.players.map(player => player.hand.length), [1, 1])
+  assert.equal(game.log.filter(entry => entry.text.includes('夜終了時に手札を1枚補充')).length, 2)
 })

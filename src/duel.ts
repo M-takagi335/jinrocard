@@ -12,8 +12,9 @@ type Player = { hp:number; hand:Instance[]; deck:Instance[]; discard:Instance[];
 export type Prompt = { side:Side; title:string; options:Instance[] }
 type Log = { night:number; text:string; privateTo?:Side }
 type Phase = 'select' | 'reveal' | 'resolve' | 'choice' | 'end' | 'finished'
-export type NpcView = { hand: readonly Instance[]; hp:number; enemyHp:number; max:number; noHeal:boolean; discard:readonly Instance[]; enemyDiscard:readonly Instance[] }
-type Config = { hp:number; deckSize:number; opening:number; nightlyDraw:number; handLimit:number; maxPlays:number; finalNight:number; finalTieBreak:'hp'|'draw' }
+export type DeckEntry = Readonly<{ role: Role; count: number }>
+export type NpcView = { hand: readonly Instance[]; hp:number; enemyHp:number; max:number; noHeal:boolean; discard:readonly Instance[]; enemyDiscard:readonly Instance[]; enemyDeck:readonly DeckEntry[] }
+type Config = { hp:number; deckSize:number; opening:number; nightlyDraw:number; handRefill:number; handLimit:number; maxPlays:number; finalNight:number; finalTieBreak:'hp'|'draw' }
 type Options = { rng?:()=>number; rules?:Partial<Config>; npc?: (view:NpcView)=>Play[] }
 export function shuffle<T>(input:readonly T[], rng:()=>number): T[] {
   const a = [...input]
@@ -36,13 +37,14 @@ export function chooseNpc(view:NpcView, rng:()=>number): Play[] {
   const ranked = view.hand.map(c => ({c, score:value(c.role,view.hp,view.noHeal,view.discard.length)+rng()*3}))
     .sort((a,b)=>b.score-a.score)
   const amount = Math.min(view.max, ranked.length, ranked[1]?.score >= 3 && rng() < .74 ? 2 : 1)
-  const guesses:Role[] = ['wolf','dire','hunter','witch','fox','knight','cat','trap']
+  const guesses = view.enemyDeck.flatMap(({role,count}) => Array<Role>(count).fill(role))
   return ranked.slice(0,amount).map(({c})=>c.role==='assassin'
     ? {id:c.id,guess:guesses[Math.floor(rng()*guesses.length)]} : {id:c.id})
 }
 
 export class Duel {
   readonly rules: Config
+  private readonly initialDecks: readonly [readonly DeckEntry[], readonly DeckEntry[]]
   readonly players: [Player,Player]
   readonly log: Log[] = []
   revealed: [Revealed[],Revealed[]] = [[],[]]
@@ -58,6 +60,11 @@ export class Duel {
   constructor(deck:Role[], enemy:Role[]=NPC_DECK, options:Options={}) {
     this.rules={...RULES,...options.rules}
     if(!validDeck(deck,this.rules.deckSize)||!validDeck(enemy,this.rules.deckSize)) throw new Error('デッキの枚数または投入上限が正しくありません。')
+    const composition = (roles: Role[]) => Object.freeze(ROLES.flatMap(role => {
+      const count = roles.filter(entry => entry === role).length
+      return count ? [Object.freeze({ role, count })] : []
+    }))
+    this.initialDecks = [composition(deck), composition(enemy)]
     this.rng=options.rng??Math.random
     this.npc=options.npc??(view=>chooseNpc(view,this.rng))
     let id=0
@@ -66,12 +73,15 @@ export class Duel {
       discard:[],status:fresh(),next:fresh()
     })
     this.players=[prepare(deck),prepare(enemy)]
-    for(const i of sides) this.draw(i,this.rules.opening,false)
+    for(const i of sides) this.draw(i,this.rules.opening,'silent')
     this.run(this.startNight())
+  }
+  deckComposition(side: Side): readonly DeckEntry[] {
+    return this.initialDecks[side]
   }
   private write(text:string, privateTo?:Side) { this.log.push({night:this.night,text,privateTo}) }
   max(side:Side) { return this.players[side].status.limited ? 1 : this.rules.maxPlays }
-  private draw(side:Side,count:number,announce=true) {
+  private draw(side:Side,count:number,kind:'draw'|'refill'|'silent'='draw') {
     const p=this.players[side]
     let drawn=0
     for(let i=0;i<count;i++) {
@@ -82,7 +92,8 @@ export class Duel {
       const c=p.deck.shift()
       if(c) { p.hand.push(c); drawn++ }
     }
-    if(announce) this.write(who[side]+'は'+drawn+'枚引いた。')
+    if(kind==='draw') this.write(who[side]+'は'+drawn+'枚引いた。')
+    if(kind==='refill') this.write(who[side]+'は夜終了時に手札を'+drawn+'枚補充した。')
   }
   private *choose(side:Side,title:string,options:Instance[],recover=false):Generator<Prompt,number,number> {
     if(side===0) return yield {side,title,options:[...options]}
@@ -121,7 +132,7 @@ export class Duel {
     for(const i of sides) yield* this.trim(i)
     const p=this.players[1], enemy=this.players[0]
     this.npcPlays=this.npc({hand:p.hand.map(c=>({...c})), hp:p.hp, enemyHp:enemy.hp, max:this.max(1),
-      noHeal:p.status.noHeal,discard:p.discard.map(c=>({...c})),enemyDiscard:enemy.discard.map(c=>({...c}))})
+      noHeal:p.status.noHeal,discard:p.discard.map(c=>({...c})),enemyDiscard:enemy.discard.map(c=>({...c})),enemyDeck:this.deckComposition(0)})
     if(!this.accepts(1,this.npcPlays)) throw new Error('NPCが無効なカードを選択しました。')
     this.phase='select'
   }
@@ -130,7 +141,7 @@ export class Duel {
     return plays.length>=Number(hand.length>0) && plays.length<=this.max(side) &&
       new Set(plays.map(p=>p.id)).size===plays.length &&
       plays.every(p=>hand.some(c=>c.id===p.id && (c.role!=='assassin' ||
-        (p.guess!==undefined && ROLES.includes(p.guess)))))
+        (p.guess!==undefined && this.deckComposition(other(side)).some(entry=>entry.role===p.guess)))))
   }
   lock(plays:Play[]) {
     if(this.phase!=='select'||!this.accepts(0,plays)) return false
@@ -267,6 +278,11 @@ export class Duel {
       }
     }
     this.clean()
+    const refillTarget = Math.min(this.rules.handRefill, this.rules.handLimit)
+    for (const i of sides) {
+      const shortage = refillTarget - this.players[i].hand.length
+      if (shortage > 0) this.draw(i, shortage, 'refill')
+    }
     for(const i of sides) yield* this.trim(i)
     if(this.night>=this.rules.finalNight) {
       const [a,b]=this.players.map(p=>p.hp)
@@ -274,5 +290,3 @@ export class Duel {
     } else {this.phase='end'}
   }
 }
-
-

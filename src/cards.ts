@@ -1,4 +1,4 @@
-export const RULES = { hp: 20, deckSize: 20, opening: 5, nightlyDraw: 1, handLimit: 7, maxPlays: 2, finalNight: 15, finalTieBreak: 'hp' } as const
+export const RULES = { hp: 20, deckSize: 20, opening: 5, nightlyDraw: 1, handRefill: 3, handLimit: 7, maxPlays: 2, finalNight: 15, finalTieBreak: 'hp' } as const
 type Category = 'attack' | 'guard' | 'intel' | 'supply' | 'hex'
 type Spec = { name: string; category: Category; limit: number; icon: string; text: string; power?: number; lowHp?: number; boosted?: number; recoil?: number }
 export const CARDS = {
@@ -33,4 +33,3 @@ export function validDeck(roles: Role[], size: number = RULES.deckSize) {
   return roles.length === size && roles.every(r => ROLES.includes(r)) &&
     ROLES.every(r => roles.filter(x => x === r).length <= card(r).limit)
 }
-
