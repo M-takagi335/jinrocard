@@ -1,7 +1,7 @@
 export const RULES = { hp: 20, deckSize: 20, opening: 5, nightlyDraw: 1, handRefill: 3, handLimit: 7, maxPlays: 2, finalNight: 15, finalTieBreak: 'hp' } as const
 type Category = 'attack' | 'guard' | 'intel' | 'supply' | 'hex'
 type Spec = { name: string; category: Category; limit: number; icon: string; text: string; power?: number; lowHp?: number; boosted?: number; recoil?: number }
-export const CARDS = {
+const CARD_DEFINITIONS = {
   wolf: { name:'人狼', category:'attack', limit:3, icon:'狼', power:3, text:'相手に襲撃で3ダメージ。' },
   dire: { name:'大狼', category:'attack', limit:2, icon:'牙', power:5, recoil:2, text:'相手に襲撃で5ダメージ。自分に2ダメージ。' },
   assassin: { name:'暗殺者', category:'attack', limit:2, icon:'刃', power:4, text:'相手が出す役職を1種類予想。的中すれば特殊攻撃で4ダメージ。' },
@@ -23,9 +23,15 @@ export const CARDS = {
   curse: { name:'呪術師', category:'hex', limit:2, icon:'呪', text:'相手の次の夜のHP回復を無効化。' },
   tyrant: { name:'独裁者', category:'hex', limit:1, icon:'冠', text:'相手が次の夜に出せるカードを最大1枚に制限。' },
 } satisfies Record<string, Spec>
-export type Role = keyof typeof CARDS
+export type Role = keyof typeof CARD_DEFINITIONS
+type CardData = Spec & { imagePath: string }
+export const CARDS = Object.fromEntries(
+  Object.entries(CARD_DEFINITIONS).map(([id, spec]) => [
+    id, { ...spec, imagePath: 'cards/' + encodeURIComponent(spec.name) + '.jpg' },
+  ]),
+) as Record<Role, CardData>
 export const ROLES = Object.keys(CARDS) as Role[]
-export const card = (role: Role): Spec => CARDS[role]
+export const card = (role: Role) => CARDS[role]
 export const CATEGORY = { attack:'攻撃', guard:'防御・回復', intel:'情報・心理戦', supply:'回収・ドロー', hex:'妨害' }
 export const STARTER: Role[] = ['wolf','wolf','wolf','dire','assassin','fox','cat','hunter','hunter','knight','witch','witch','trap','seer','spy','medium','mason','mad','curse','tyrant']
 export const NPC_DECK: Role[] = ['wolf','wolf','dire','dire','fox','fox','assassin','cat','hunter','hunter','knight','witch','witch','trap','prophet','jester','keeper','merchant','mad','curse']

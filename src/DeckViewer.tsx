@@ -1,6 +1,6 @@
 import { useId, useRef, useState } from 'react'
 import { Art } from './CardTile.tsx'
-import { card } from './cards.ts'
+import { card, type Role } from './cards.ts'
 import type { DeckEntry } from './duel.ts'
 import { Sheet } from './Sheet.tsx'
 
@@ -10,13 +10,14 @@ const tabs = [
 ] as const
 type Tab = typeof tabs[number]['id']
 
-export function DeckViewer({ title, night, hp, initial, remaining, onClose }: {
+export function DeckViewer({ title, night, hp, initial, remaining, onInspect, onClose }: {
   title: string
   night: number
   hp: number
   initial: readonly DeckEntry[]
   remaining: readonly DeckEntry[]
   onClose: () => void
+  onInspect: (role: Role) => void
 }) {
   const [tab, setTab] = useState<Tab>('initial')
   const id = useId()
@@ -61,7 +62,9 @@ export function DeckViewer({ title, night, hp, initial, remaining, onClose }: {
                   <details>
                     <summary><strong>{spec.name}</strong><span>{count}枚</span></summary>
                     <div className="deck-viewer-detail">
-                      <Art role={role} />
+                      <button className="art-inspect" aria-label={spec.name + 'を拡大'} aria-haspopup="dialog" onClick={() => onInspect(role)}>
+                        <Art role={role} />
+                      </button>
                       <p>{spec.text}</p>
                     </div>
                   </details>

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { ROLES } from './cards.ts'
+import { ROLES, type Role } from './cards.ts'
 import { deckNameLimit, type NamedDeck } from './decks.ts'
 import { DECK_TYPES, PROFILES, generateDecks, type DeckType, type GeneratedDeck } from './generateDeck.ts'
 import { DeckComposition, Sheet } from './Sheet.tsx'
@@ -7,12 +7,13 @@ import { DeckComposition, Sheet } from './Sheet.tsx'
 type Props = {
   usedNames: string[]
   onClose: () => void
+  onInspect: (role: Role) => void
   onUse: (deck: NamedDeck) => void
   onEdit: (deck: NamedDeck) => void
   onSave: (decks: NamedDeck[]) => boolean
 }
 
-export function DeckGenerator({ usedNames, onClose, onUse, onEdit, onSave }: Props) {
+export function DeckGenerator({ usedNames, onClose, onInspect, onUse, onEdit, onSave }: Props) {
   const [size, setSize] = useState<1 | 3 | 5 | 10>(1)
   const [types, setTypes] = useState<DeckType[]>(['balanced'])
   const [results, setResults] = useState<GeneratedDeck[]>([])
@@ -163,7 +164,7 @@ export function DeckGenerator({ usedNames, onClose, onUse, onEdit, onSave }: Pro
                 </button>
                 <button className="quiet" onClick={() => onEdit(current)}>編集する</button>
               </div>
-              <DeckComposition entries={entries} />
+              <DeckComposition entries={entries} onInspect={onInspect} />
             </div>
           </>
         )}

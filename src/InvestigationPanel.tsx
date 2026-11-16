@@ -1,15 +1,16 @@
 import { Art } from './CardTile.tsx'
-import { card } from './cards.ts'
+import { card, type Role } from './cards.ts'
 import type { Investigation } from './duel.ts'
 import { Sheet } from './Sheet.tsx'
 
 const titles = { seer: '占い師の透視結果', prophet: '預言者の透視結果' }
 const labels = { old: '情報が古い', used: '使用を確認' }
 
-export function InvestigationPanel({ records, onConfirm, onClose }: {
+export function InvestigationPanel({ records, onConfirm, onClose, onInspect }: {
   records: Investigation[]
   onConfirm?: () => void
   onClose?: () => void
+  onInspect: (role: Role) => void
 }) {
   const title = onConfirm && records[0] ? titles[records[0].kind] : '調査記録'
 
@@ -35,10 +36,13 @@ export function InvestigationPanel({ records, onConfirm, onClose }: {
                   : labels[status]
                 return (
                   <li key={index} className={'card insight-card ' + spec.category}>
+                    <button className="art-inspect" aria-label={spec.name + 'を拡大'} aria-haspopup="dialog" onClick={() => onInspect(role)}>
+                      <Art role={role} />
+                    </button>
                     <details open={kind === 'seer'}>
                       <summary>
                         {kind === 'prophet' && <span className="insight-order">上から{index + 1}枚目</span>}
-                        <Art role={role} />
+
                         <strong className="card-name">{spec.name}</strong>
                         <span className={'insight-status ' + status}>{badge}</span>
                         <span className="insight-detail-label">効果を見る</span>

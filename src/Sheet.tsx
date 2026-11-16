@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, type ReactNode } from 'react'
+import { Art } from './CardTile.tsx'
 import { card, type Role } from './cards.ts'
 import type { DeckEntry } from './duel.ts'
 
@@ -42,23 +43,21 @@ export function Sheet({ title, onClose, children, footer, className }: {
   )
 }
 
-export function DeckComposition({ entries, onSelect, selected }: {
+export function DeckComposition({ entries, onInspect }: {
   entries: readonly DeckEntry[]
-  onSelect?: (role: Role) => void
-  selected?: Role
+  onInspect: (role: Role) => void
 }) {
   return (
-    <ul className="composition">
-      {entries.map(({ role, count }) => {
-        const label = <><span>{card(role).name}</span><strong>{count}枚</strong></>
-        return (
-          <li key={role}>
-            {onSelect
-              ? <button className="quiet" aria-pressed={role === selected} onClick={() => onSelect(role)}>{label}</button>
-              : <div>{label}</div>}
-          </li>
-        )
-      })}
+    <ul className="composition artwork-composition">
+      {entries.map(({ role, count }) => (
+        <li key={role}>
+          <button className="quiet" onClick={() => onInspect(role)} aria-haspopup="dialog">
+            <Art role={role} />
+            <span>{card(role).name}</span>
+            <strong>{count}枚</strong>
+          </button>
+        </li>
+      ))}
     </ul>
   )
 }
