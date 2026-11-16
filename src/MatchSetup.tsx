@@ -4,6 +4,7 @@ import { RULES, type Role } from './cards.ts'
 import { deckCardsError, type MatchDeck } from './decks.ts'
 import { DECK_TYPES, PROFILES, type DeckType } from './generateDeck.ts'
 import { Sheet } from './Sheet.tsx'
+import { NPC_DIFFICULTIES, type NpcDifficulty } from './strongNpc.ts'
 
 const tabs = ['おまかせ', 'マイデッキ'] as const
 const quickLabels: Record<DeckType, string> = {
@@ -15,7 +16,7 @@ const quickLabels: Record<DeckType, string> = {
   random: 'ランダム型',
 }
 
-export function MatchSetup({ options, quickId, myId, onSelect, npcDeck, onNpcType, onStart, onInspect,
+export function MatchSetup({ options, quickId, myId, onSelect, npcDeck, onNpcType, npcDifficulty, onDifficulty, onStart, onInspect,
   onClose, error, issues, onStandard, onGenerate, onClearError }: {
   options: MatchDeck[]
   quickId: string
@@ -23,6 +24,8 @@ export function MatchSetup({ options, quickId, myId, onSelect, npcDeck, onNpcTyp
   onSelect: (id: string) => void
   npcDeck: { type: DeckType | 'default'; cards: Role[] }
   onNpcType: (type: DeckType | 'default') => void
+  npcDifficulty: NpcDifficulty
+  onDifficulty: (difficulty: NpcDifficulty) => void
   onStart: (deck: MatchDeck) => void
   onInspect: (role: Role) => void
   onClose: () => void
@@ -131,6 +134,15 @@ export function MatchSetup({ options, quickId, myId, onSelect, npcDeck, onNpcTyp
             <button className="quiet" aria-haspopup="dialog" onClick={() => setPreviewSide('npc')}>NPCの内容を確認</button>
           </div>
         </section>
+        <fieldset className="match-difficulty">
+          <legend>NPCの強さ</legend>
+          <div className="match-difficulty-options">
+            {(Object.keys(NPC_DIFFICULTIES) as NpcDifficulty[]).map(difficulty => (
+              <button type="button" className="quiet" key={difficulty} aria-pressed={npcDifficulty === difficulty}
+                onClick={() => onDifficulty(difficulty)}>{NPC_DIFFICULTIES[difficulty]}</button>
+            ))}
+          </div>
+        </fieldset>
       </Sheet>
       {previewSide && previewDeck && (
         <Sheet title={(previewSide === 'npc' ? 'NPC：' : '') + previewDeck.name + ' · ' + previewDeck.cards.length + '枚'} className="match-contents"

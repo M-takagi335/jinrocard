@@ -10,6 +10,7 @@ import { InvestigationPanel } from './InvestigationPanel.tsx'
 import { DeckCardList } from './DeckCardList.tsx'
 import { DeckGenerator } from './DeckGenerator.tsx'
 import { MatchSetup } from './MatchSetup.tsx'
+import { NPC_DIFFICULTIES, type NpcDifficulty } from './strongNpc.ts'
 import { generateDeck, type DeckType } from './generateDeck.ts'
 import { DeckComposition, Sheet } from './Sheet.tsx'
 import { AssassinPrediction } from './AssassinPrediction.tsx'
@@ -69,6 +70,7 @@ function App() {
   const [npcDeck, setNpcDeck] = useState<{ type: DeckType | 'default'; cards: Role[] }>({
     type: 'default', cards: [...STARTER],
   })
+  const [npcDifficulty, setNpcDifficulty] = useState<NpcDifficulty>('standard')
   const [battleName, setBattleName] = useState('')
   const [myMatchId, setMyMatchId] = useState<string>()
   const [quickMatchId, setQuickMatchId] = useState('standard')
@@ -159,7 +161,7 @@ function App() {
   const start = (cards: Role[], enemy: Role[], deckName: string) => {
     const error = deckCardsError(cards)
     if (error) throw new Error(error)
-    const nextDuel = new Duel([...cards], [...enemy])
+    const nextDuel = new Duel([...cards], [...enemy], { npcDifficulty })
     setReadCount(0)
     setShowInvestigation(false)
     setBattleName(deckName)
@@ -367,7 +369,7 @@ function App() {
         <div className="fighters">{([0, 1] as const).map(side => {
           const player = duel.players[side]
           const { lost, gained } = duel.nightHpChange(side)
-          const name = side === 0 ? 'あなた' : 'NPC'
+          const name = side === 0 ? 'あなた' : 'NPC（' + NPC_DIFFICULTIES[duel.npcDifficulty] + '）'
           return (
             <section className={'panel fighter side' + side} key={side} aria-label={name}>
               <div className="fighter-line">
@@ -531,6 +533,7 @@ function App() {
           options={options} quickId={quickMatchId} myId={myMatchId}
           onSelect={id => { setMyMatchId(id); setMatchError('') }}
           npcDeck={npcDeck} onNpcType={selectNpcDeck}
+          npcDifficulty={npcDifficulty} onDifficulty={setNpcDifficulty}
           onStart={startPrepared} onInspect={inspect} onClose={closeOverlay}
           error={matchError} issues={library.issues}
           onStandard={() => { setQuickMatchId('standard'); setMatchError('') }} onGenerate={selectQuickDeck} onClearError={() => setMatchError('')}

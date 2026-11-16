@@ -1,4 +1,5 @@
 import { card, NPC_DECK, ROLES, RULES, validDeck, type Role } from './cards.ts'
+import { chooseStrongNpc, type NpcDifficulty, type StrongNpcView } from './strongNpc.ts'
 export type Side = 0 | 1
 const sides = [0, 1] as const
 const other = (side: Side): Side => side === 0 ? 1 : 0
@@ -34,7 +35,7 @@ function composition(roles: readonly Role[]): readonly DeckEntry[] {
 export type NpcView = { hand: readonly Instance[]; hp:number; enemyHp:number; max:number; noHeal:boolean; discard:readonly Instance[]; enemyDiscard:readonly Instance[]; enemyDeck:readonly DeckEntry[]; enemyRemaining:readonly DeckEntry[] }
 type Config = { hp:number; deckSize:number; opening:number; nightlyDraw:number; handRefill:number; handLimit:number; maxPlays:number; finalNight:number; finalTieBreak:'hp'|'draw' }
 type IntelDraw = Readonly<Partial<Record<'seer' | 'prophet', number>>>
-type Options = { rng?:()=>number; rules?:Partial<Config>; npc?: (view:NpcView)=>Play[]; intelDraw?: IntelDraw }
+type Options = { rng?:()=>number; rules?:Partial<Config>; npc?: (view:NpcView)=>Play[]; intelDraw?: IntelDraw; npcDifficulty?: NpcDifficulty }
 export function shuffle<T>(input:readonly T[], rng:()=>number): T[] {
   const a = [...input]
   for(let i=a.length-1;i>0;i--) { const j=Math.floor(rng()*(i+1)); [a[i],a[j]]=[a[j],a[i]] }
@@ -63,6 +64,7 @@ export function chooseNpc(view:NpcView, rng:()=>number): Play[] {
 
 export class Duel {
   readonly rules: Config
+  readonly npcDifficulty: NpcDifficulty
   private readonly investigations: [InvestigationSnapshot[], InvestigationSnapshot[]] = [[], []]
   private readonly revisions = [0, 0]
   private hpChanges: [HpChange, HpChange] = [{ lost: 0, gained: 0 }, { lost: 0, gained: 0 }]
@@ -80,6 +82,7 @@ export class Duel {
   private rng:()=>number
   private npc:(view:NpcView)=>Play[]
   private npcPlays:Play[]=[]
+  private readonly publicPlays: [Role[][], Role[][]] = [[], []]
   private cardsInPlay = false
   private work:Generator<Prompt,void,number>|null=null
   constructor(deck:Role[], enemy:Role[]=NPC_DECK, options:Options={}) {
@@ -88,7 +91,10 @@ export class Duel {
     this.initialDecks = [composition(deck), composition(enemy)]
     this.rng=options.rng??Math.random
     this.intelDraw = { ...options.intelDraw }
-    this.npc=options.npc??(view=>chooseNpc(view,this.rng))
+    this.npcDifficulty = options.npcDifficulty ?? 'standard'
+    this.npc = options.npc ?? (this.npcDifficulty === 'strong'
+      ? view => chooseStrongNpc(this.withPublicContext(1, view), this.rng)
+      : view => chooseNpc(view, this.rng))
     let id=0
     const prepare=(roles:Role[]):Player=>({
       hp:this.rules.hp, hand:[], deck:shuffle(roles.map(role=>({id:++id,role})),this.rng),
@@ -110,6 +116,24 @@ export class Duel {
       for (const { id, role } of this.revealed[side]) unique.set(id, role)
     }
     return composition([...unique.values()])
+  }
+  private npcView(side: Side): NpcView {
+    const player = this.players[side], opponent = this.players[other(side)]
+    return { hand: player.hand.map(card => ({ ...card })), hp: player.hp, enemyHp: opponent.hp,
+      max: this.max(side), noHeal: player.status.noHeal, discard: player.discard.map(card => ({ ...card })),
+      enemyDiscard: opponent.discard.map(card => ({ ...card })), enemyDeck: this.deckComposition(other(side)),
+      enemyRemaining: this.remainingComposition(other(side)) }
+  }
+  strongNpcView(side: Side): StrongNpcView {
+    return this.withPublicContext(side, this.npcView(side))
+  }
+  private withPublicContext(side: Side, view: NpcView): StrongNpcView {
+    const opponent = other(side)
+    return { ...view, night: this.night, finalNight: this.rules.finalNight,
+      maxHp: this.rules.hp, handRefill: this.rules.handRefill, deckCount: this.players[side].deck.length,
+      ownRemaining: this.remainingComposition(side), enemyHandCount: this.players[opponent].hand.length,
+      enemyMax: this.max(opponent), enemyNoHeal: this.players[opponent].status.noHeal,
+      enemyHistory: this.publicPlays[opponent].map(turn => [...turn]) }
   }
   investigationsFor(side: Side): Investigation[] {
     const opponent = other(side)
@@ -212,9 +236,7 @@ export class Duel {
     this.write('第'+this.night+'夜が始まった。')
     for(const i of sides) this.draw(i,this.rules.nightlyDraw)
     for(const i of sides) yield* this.trim(i)
-    const p=this.players[1], enemy=this.players[0]
-    this.npcPlays=this.npc({hand:p.hand.map(c=>({...c})), hp:p.hp, enemyHp:enemy.hp, max:this.max(1),
-      noHeal:p.status.noHeal,discard:p.discard.map(c=>({...c})),enemyDiscard:enemy.discard.map(c=>({...c})),enemyDeck:this.deckComposition(0),enemyRemaining:this.remainingComposition(0)})
+    this.npcPlays=this.npc(this.npcView(1))
     if(!this.accepts(1,this.npcPlays)) throw new Error('NPCが無効なカードを選択しました。')
     this.phase='select'
   }
@@ -239,6 +261,8 @@ export class Duel {
         return {...c,guess:c.role==='assassin'?play.guess:undefined,disabled:false}
       })
       if(!all[i].length) this.write(who[i]+'は手札がないためパスした。')
+      this.publicPlays[i].push(this.revealed[i].map(card => card.role))
+      if (this.publicPlays[i].length > 6) this.publicPlays[i].shift()
     }
     this.cardsInPlay = true
     this.phase='reveal'; return true
