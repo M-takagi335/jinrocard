@@ -592,6 +592,31 @@
   scrollbar-gutter: stable;
   padding: 2px;
 }
+html:has(.match-contents[open]) {
+  overflow: hidden;
+}
+.match-sheet:has(~ .match-contents[open]) .sheet-body {
+  overflow: hidden;
+}
+@media (max-width: 580px) {
+  html:has(.match-sheet[open]) {
+    overflow: hidden;
+  }
+  .match-sheet, .match-contents {
+    overflow: hidden;
+  }
+  .match-sheet .sheet-body, .match-contents .sheet-body {
+    min-height: 0;
+  }
+  .match-sheet .match-panes, .match-sheet .match-panes > [role=tabpanel] {
+    block-size: auto;
+    overflow: visible;
+    scrollbar-gutter: auto;
+  }
+  .match-sheet .sheet-footer {
+    padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+  }
+}
 .match-section-title, .match-npc label {
   display: block;
   margin-bottom: 5px;
