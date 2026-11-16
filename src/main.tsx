@@ -7,7 +7,7 @@ import { CardTile } from './CardTile.tsx'
 import { CardDetail } from './CardDetail.tsx'
 import { DeckViewer } from './DeckViewer.tsx'
 import { InvestigationPanel } from './InvestigationPanel.tsx'
-import { DeckGenerator } from './DeckGenerator.tsx'
+import { DeckGenerator, type QuickEntry } from './DeckGenerator.tsx'
 import { MatchSetup } from './MatchSetup.tsx'
 import { generateDeck, type DeckType } from './generateDeck.ts'
 import { DeckComposition, Sheet } from './Sheet.tsx'
@@ -32,7 +32,7 @@ function readLibrary(): { decks: SavedDeck[]; issues: string[] } {
   }
 }
 
-type Overlay = { type: 'start' | 'generate' | 'investigations' | 'catalog' } | { type: 'deck' | 'discard'; side: Side } | { type: 'guess'; id: number } | { type: 'delete'; deck: SavedDeck }
+type Overlay = { type: 'start' | 'generate' | 'investigations' | 'catalog' | 'manage' | 'save' | 'quick-deck' } | { type: 'deck' | 'discard'; side: Side } | { type: 'guess'; id: number } | { type: 'delete'; deck: SavedDeck }
 
 const rolesByName = new Map(ROLES.map(role => [card(role).name, role]))
 const roleMention = new RegExp('(' + [...rolesByName.keys()].sort((a, b) => b.length - a.length).join('|') + ')', 'g')
@@ -50,6 +50,7 @@ function App() {
   const [library, setLibrary] = useState(readLibrary)
   const saved = library.decks
   const [name, setName] = useState('')
+  const [saveName, setSaveName] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [notice, setNotice] = useState('')
   const [overlay, setOverlay] = useState<Overlay | null>(null)
@@ -58,6 +59,8 @@ function App() {
   const [npcType, setNpcType] = useState<DeckType | 'default'>('default')
   const [battleName, setBattleName] = useState('')
   const [matchSelection, setMatchSelection] = useState('standard')
+  const [quickDecks, setQuickDecks] = useState<Partial<Record<DeckType, QuickEntry>>>({})
+  const [quickType, setQuickType] = useState<DeckType>()
   const [matchError, setMatchError] = useState('')
   const [filter,setFilter]=useState<string>('all')
   const [duel,setDuel]=useState<Duel|null>(null)
@@ -121,10 +124,11 @@ function App() {
   const start = (cards: Role[], enemy: Role[], deckName: string) => {
     const error = deckCardsError(cards)
     if (error) throw new Error(error)
-    const nextDuel = new Duel(cards, enemy)
+    const playerCards = [...cards]
+    const nextDuel = new Duel(playerCards, enemy)
     setReadCount(0)
     setShowInvestigation(false)
-    setBattleDeck([...cards])
+    setBattleDeck(playerCards)
     setBattleEnemy([...enemy])
     setBattleName(deckName)
     setMatchError('')
@@ -175,14 +179,22 @@ function App() {
     setFilter('all')
     setNotice('')
     closeOverlay()
-    requestAnimationFrame(() => document.getElementById('deck-name')?.focus())
+    requestAnimationFrame(() => document.getElementById('builder-play')?.focus())
+  }
+  const openSaveDeck = () => {
+    setSaveName(name)
+    setNotice('')
+    setOverlay({ type: 'save' })
   }
   const saveDeck = () => {
-    if (!validDeck(deck) || !name.trim()) return
-    const entry = { id: editingId ?? newDeckId(), name: name.trim(), cards: [...deck] }
+    if (!validDeck(deck) || !saveName.trim()) return
+    const entry = { id: editingId ?? newDeckId(), name: saveName.trim(), cards: [...deck] }
     if (persist(current => current.some(item => item.id === entry.id)
       ? current.map(item => item.id === entry.id ? entry : item)
-      : [...current, entry], '「' + entry.name + '」を保存しました。')) editDeck(entry)
+      : [...current, entry], '「' + entry.name + '」を保存しました。')) {
+      editDeck(entry)
+      closeOverlay()
+    }
   }
   const duplicateDeck = (entry: SavedDeck) => {
     const copy = {
@@ -219,6 +231,61 @@ function App() {
   const home=()=>{setDuel(null);setPlays([]);window.scrollTo(0,0)}
   const toggle=(c:Instance)=>setPlays(old=>old.some(x=>x.id===c.id)?old.filter(x=>x.id!==c.id):old.length<(duel?.max(0)??0)?[...old,{id:c.id}]:old)
   const tally=(r:Role)=>deck.filter(x=>x===r).length
+  const deckError = deckCardsError(deck)
+  const missing = RULES.deckSize - deck.length
+  const resetTools = (
+    <div className="deck-tools">
+      <button className="quiet" onClick={() => { setDeck([...STARTER]); closeOverlay() }}>初期デッキに戻す</button>
+      <button className="quiet" disabled={!deck.length} onClick={() => { setDeck([]); closeOverlay() }}>空にする</button>
+    </div>
+  )
+  const startDraft = () => {
+    if (deckCardsError(deck)) return
+    try {
+      start(deck, NPC_DECK, name.trim() || '編集中のデッキ')
+    } catch (failure) {
+      setNotice(failure instanceof Error ? failure.message : '対戦を開始できませんでした。')
+    }
+  }
+  const deckManagement = (
+    <>
+      <div className="deck-editor">
+        <button className="primary" disabled={!!deckError} aria-haspopup="dialog" onClick={openSaveDeck}>
+          {editingId ? '変更を保存' : 'デッキを保存'}
+        </button>
+        <button className="quiet" onClick={() => {
+          setEditingId(null); setName(''); setDeck([]); setNotice(''); closeOverlay()
+        }}>新規デッキ</button>
+        <button className="quiet" aria-haspopup="dialog" onClick={() => setOverlay({ type: 'generate' })}>おまかせ作成</button>
+      </div>
+      <div className="library-heading">
+        <h3>保存済みデッキ</h3>
+        <label className="quiet import-button">
+          JSONをインポート
+          <input type="file" accept=".json,application/json" aria-label="JSONをインポート" onChange={event => {
+            const file = event.currentTarget.files?.[0]
+            event.currentTarget.value = ''
+            if (file) void uploadDeck(file)
+          }} />
+        </label>
+      </div>
+      {saved.length ? (
+        <ul className="saved-decks">
+          {saved.map(entry => (
+            <li key={entry.id}>
+              <strong>{entry.name}{editingId === entry.id && <small>編集中</small>}</strong>
+              <div className="deck-tools">
+                <button className="quiet" onClick={() => { editDeck(entry); setNotice(''); closeOverlay() }}>編集</button>
+                <button className="quiet" onClick={() => duplicateDeck(entry)}>複製</button>
+                <button className="quiet" onClick={() => downloadDeck(entry)}>JSON出力</button>
+                <button className="quiet" onClick={() => setOverlay({ type: 'delete', deck: entry })}>削除</button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      ) : <p className="hint">保存済みのデッキはありません。</p>}
+    </>
+  )
   return <>
     <header className="top"><div className="wrap top-inner"><span className="brand"><span className="sigil">◈</span> 人狼デュエル</span><span className="top-caption">WEREWOLF DUEL</span><button className="quiet" aria-expanded={rules} onClick={()=>setRules(v=>!v)}>{rules?'ルールを閉じる':'遊び方'}</button></div></header>
     <main className="wrap">
@@ -230,47 +297,24 @@ function App() {
       </section>}
       {!duel ? <>
         <section className="hero"><div className="moon" aria-hidden="true"/><div className="hero-copy"><div className="eyebrow">✦　月夜の決闘</div><h1>人狼デュエル</h1><p>役職を選び、相手の手を読む。<br/>十五夜のうちに、決着をつけろ。</p><button className="primary" onClick={openMatchSetup}>NPC戦を開始 <span aria-hidden="true">→</span></button> <button className="quiet catalog-launch" onClick={() => setOverlay({ type: 'catalog' })}>カード一覧</button></div><div className="hero-index" aria-hidden="true">Ⅰ <span>／</span> ⅩⅤ</div></section>
-        <section className="builder">
-          <div className="section-title"><div><div className="eyebrow">01 / DECK BUILDER</div><h2>デッキ構築</h2></div><div className={'count '+(validDeck(deck)?'ready':'')}><strong>{deck.length}</strong> / {RULES.deckSize} 枚</div></div>
-          <section className="panel deck-library" aria-label="デッキ管理">
-            <button className="primary generator-launch" aria-haspopup="dialog" onClick={() => setOverlay({ type: 'generate' })}>おまかせ作成</button>
-            <div className="deck-editor">
-              <label htmlFor="deck-name">デッキ名</label>
-              <input id="deck-name" value={name} maxLength={deckNameLimit} placeholder="例：月夜の狩人" onChange={event => setName(event.target.value)} />
-              <button className="primary" disabled={!validDeck(deck) || !name.trim()} onClick={saveDeck}>
-                {editingId ? '変更を保存' : 'デッキを保存'}
-              </button>
-              <button className="quiet" onClick={() => { setEditingId(null); setName(''); setDeck([]); setNotice('') }}>新規デッキ</button>
+        <section className="builder" id="deck-builder" tabIndex={-1}>
+          <div className="section-title builder-heading"><div><div className="eyebrow">01 / DECK BUILDER</div><h2>デッキ構築</h2></div></div>
+          <div className="builder-summary">
+            <div className="builder-deck">
+              <strong>{name.trim() || '編集中のデッキ'}</strong>
+              <span className="builder-count">{deck.length}/{RULES.deckSize}枚</span>
             </div>
-            <div className="library-heading">
-              <h3>保存済みデッキ</h3>
-              <label className="quiet import-button">
-                JSONをインポート
-                <input type="file" accept=".json,application/json" aria-label="JSONをインポート" onChange={event => {
-                  const file = event.currentTarget.files?.[0]
-                  event.currentTarget.value = ''
-                  if (file) void uploadDeck(file)
-                }} />
-              </label>
+            <div className="builder-actions">
+              <button id="builder-play" className="primary" disabled={!!deckError} onClick={startDraft}>このデッキでNPC戦</button>
+              <button className="quiet manage-launch" aria-haspopup="dialog" onClick={() => setOverlay({ type: 'manage' })}>管理</button>
             </div>
-            {notice && <p className="notice" role="status">{notice}</p>}
-            {saved.length ? (
-              <ul className="saved-decks">
-                {saved.map(entry => (
-                  <li key={entry.id}>
-                    <strong>{entry.name}{editingId === entry.id && <small>編集中</small>}</strong>
-                    <div className="deck-tools">
-                      <button className="quiet" onClick={() => { editDeck(entry); setNotice('') }}>編集</button>
-                      <button className="quiet" onClick={() => duplicateDeck(entry)}>複製</button>
-                      <button className="quiet" onClick={() => downloadDeck(entry)}>JSON出力</button>
-                      <button className="quiet" onClick={() => setOverlay({ type: 'delete', deck: entry })}>削除</button>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            ) : <p className="hint">保存済みのデッキはありません。</p>}
+            {deckError && <p className="builder-missing" role="status">{missing > 0 ? 'あと' + missing + '枚で対戦できます。' : deckError}</p>}
+          </div>
+          {notice && <p className="notice builder-notice" role="status">{notice}</p>}
+          <section className="panel deck-library builder-desktop" aria-label="デッキ管理">
+            {deckManagement}
           </section>
-          <div className="controls"><div className="filters" aria-label="カード分類">{[['all','すべて'],...Object.entries(CATEGORY)].map(([key,label])=><button key={key} className={filter===key?'active':''} aria-pressed={filter===key} onClick={()=>setFilter(key)}>{label}</button>)}</div><div className="deck-tools"><button className="quiet" onClick={()=>setDeck([...STARTER])}>初期デッキに戻す</button><button className="quiet" disabled={!deck.length} onClick={()=>setDeck([])}>空にする</button></div></div>
+          <div className="controls"><div className="filters" aria-label="カード分類">{[['all','すべて'],...Object.entries(CATEGORY)].map(([key,label])=><button key={key} className={filter===key?'active':''} aria-pressed={filter===key} onClick={()=>setFilter(key)}>{label}</button>)}</div><div className="builder-desktop">{resetTools}</div></div>
           <p className="hint">カードの下の ＋ / − で投入枚数を変更。20枚揃えると対戦できます。</p>
           <div className="catalog">{ROLES.filter(r=>filter==='all'||card(r).category===filter).map(r=><article className="deck-item" key={r}><CardTile role={r} onInspect={() => inspect(r)} /><div className="quantity"><button aria-label={card(r).name+'を減らす'} disabled={!tally(r)} onClick={()=>setDeck(d=>{const copy=[...d];copy.splice(copy.indexOf(r),1);return copy})}>−</button><span>{tally(r)} <small>/ {card(r).limit}</small></span><button aria-label={card(r).name+'を増やす'} disabled={deck.length>=RULES.deckSize||tally(r)>=card(r).limit} onClick={()=>setDeck(d=>[...d,r])}>＋</button></div></article>)}</div>
         </section>
@@ -361,15 +405,43 @@ function App() {
       {overlay?.type === 'investigations' && !pending && (
         <InvestigationPanel records={[...investigations].reverse()} onClose={closeOverlay} onInspect={inspect} />
       )}
-      {overlay?.type === 'generate' && (
+      {(overlay?.type === 'generate' || overlay?.type === 'quick-deck') && (
         <DeckGenerator
+          key={overlay.type}
+          quick={overlay.type === 'quick-deck' ? {
+            active: quickType,
+            entries: quickDecks,
+            onReady: entry => {
+              setQuickType(entry.type)
+              setQuickDecks(previous => ({ ...previous, [entry.type]: entry }))
+            },
+          } : undefined}
           usedNames={saved.map(entry => entry.name)}
           onInspect={inspect}
-          onClose={closeOverlay}
+          onClose={overlay.type === 'quick-deck' ? openMatchSetup : closeOverlay}
           onUse={entry => start(entry.cards, NPC_DECK, entry.name)}
           onEdit={editGenerated}
           onSave={saveGenerated}
         />
+      )}
+      {overlay?.type === 'manage' && (
+        <Sheet title="デッキ管理" onClose={closeOverlay}>
+          {deckError && <p className="hint">{missing > 0 ? '保存にはあと' + missing + '枚必要です。' : deckError}</p>}
+          {deckManagement}
+          <div className="management-reset">{resetTools}</div>
+          {notice && <p className="notice" role="status">{notice}</p>}
+        </Sheet>
+      )}
+      {overlay?.type === 'save' && (
+        <Sheet title={editingId ? '変更を保存' : 'デッキを保存'} onClose={closeOverlay}>
+          <form className="deck-editor save-deck-form" onSubmit={event => { event.preventDefault(); saveDeck() }}>
+            <label htmlFor="save-deck-name">デッキ名</label>
+            <input id="save-deck-name" value={saveName} maxLength={deckNameLimit} placeholder="例：月夜の狩人"
+              onChange={event => setSaveName(event.target.value)} />
+            <button className="primary" type="submit" disabled={!!deckError || !saveName.trim()}>保存する</button>
+          </form>
+          {notice && <p className="notice" role="alert">{notice}</p>}
+        </Sheet>
       )}
       {overlay?.type === 'start' && (
         <MatchSetup
@@ -378,6 +450,11 @@ function App() {
           npcType={npcType} onNpcType={type => { setNpcType(type); setMatchError('') }}
           onStart={startPrepared} onInspect={inspect} onClose={closeOverlay}
           error={matchError} issues={library.issues}
+          onGenerate={() => setOverlay({ type: 'quick-deck' })}
+          onBuild={() => {
+            closeOverlay()
+            requestAnimationFrame(() => document.getElementById('deck-builder')?.focus())
+          }}
         />
       )}
       {overlay?.type === 'deck' && duel && !pending && (

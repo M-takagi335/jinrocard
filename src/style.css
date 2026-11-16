@@ -500,3 +500,112 @@
   .match-layout { grid-template-columns: minmax(0, 1fr); gap: 10px; }
   .match-card-list li { grid-template-columns: 48px minmax(0, 1fr); }
 }
+
+.builder-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 14px;
+  margin-bottom: 12px;
+}
+.builder-deck, .builder-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.builder-deck strong {
+  overflow-wrap: anywhere;
+}
+.builder-count {
+  color: var(--gold);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.builder-missing {
+  flex-basis: 100%;
+  color: var(--muted);
+  font-size: 13px;
+}
+.manage-launch {
+  display: none;
+}
+.builder-notice {
+  margin-bottom: 12px;
+}
+.management-reset {
+  border-top: 1px solid var(--line);
+  margin-top: 12px;
+  padding-top: 12px;
+}
+@media (max-width: 580px) {
+  .builder {
+    margin-top: 22px;
+  }
+  .builder-heading {
+    margin-bottom: 7px;
+  }
+  .builder-heading .eyebrow,
+  .builder-desktop {
+    display: none;
+  }
+  .builder-summary {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    margin-bottom: 8px;
+  }
+  .builder-deck {
+    justify-content: space-between;
+  }
+  .builder-actions .primary {
+    flex: 1;
+    padding-inline: 8px;
+  }
+  .manage-launch {
+    display: inline-flex;
+    min-height: 46px;
+    align-items: center;
+  }
+  .builder .controls {
+    padding-top: 8px;
+  }
+}
+
+.match-methods {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.match-methods button {
+  min-height: 44px;
+}
+.quick-generator .generator-types {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.quick-generator .generator-types button {
+  min-height: 50px;
+  text-align: center;
+  align-content: center;
+}
+.quick-generator .generator .match-card-list li {
+  grid-template-columns: 64px minmax(0, 1fr);
+}
+.generator-save-form {
+  display: grid;
+  gap: 10px;
+}
+.generator-save-form label {
+  display: grid;
+  gap: 4px;
+}
+.generator-save-form input {
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: #15121b;
+  color: var(--ink);
+}
