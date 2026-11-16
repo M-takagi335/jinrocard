@@ -201,7 +201,7 @@ function App() {
     setBaseline(id ? entry.cards : [])
     setNotice('')
     closeOverlay()
-    requestAnimationFrame(() => document.getElementById('deck-builder')?.focus())
+    requestAnimationFrame(() => document.getElementById('deck-builder-title')?.focus())
   })
   const openSaveDeck = () => {
     setSaveName(name)
@@ -318,8 +318,8 @@ function App() {
             </div>
           </section>
         </> : (
-        <section className="builder" id="deck-builder" tabIndex={-1}>
-          <div className="section-title builder-heading"><div><div className="eyebrow">01 / DECK BUILDER</div><h2>デッキ構築</h2></div></div>
+        <section className="builder" aria-labelledby="deck-builder-title">
+          <div className="section-title builder-heading"><div><div className="eyebrow">01 / DECK BUILDER</div><h2 id="deck-builder-title" tabIndex={-1}>デッキ構築</h2></div></div>
           <div className="builder-launchers">
             <button className="primary" aria-haspopup="dialog" onClick={() => setOverlay({ type: 'generate' })}>おまかせ生成</button>
             <button className="quiet" aria-haspopup="dialog" onClick={() => { setLibraryId(editingId); setNotice(''); setOverlay({ type: 'library' }) }}>保存済みデッキ</button>
