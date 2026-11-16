@@ -4,6 +4,7 @@ import { card, CATEGORY, NPC_DECK, ROLES, RULES, STARTER, validDeck, type Role }
 import { Duel, type Instance, type Play, type Side } from './duel.ts'
 import { deckNameLimit, exportDeck, importDeck, loadSavedDecks, storeSavedDecks, type NamedDeck, type SavedDeck } from './decks.ts'
 import { CardTile } from './CardTile.tsx'
+import { DeckViewer } from './DeckViewer.tsx'
 import { InvestigationPanel } from './InvestigationPanel.tsx'
 import { DeckGenerator } from './DeckGenerator.tsx'
 import { DECK_TYPES, PROFILES, generateDeck, type DeckType } from './generateDeck.ts'
@@ -27,7 +28,7 @@ function readLibrary(): SavedDeck[] {
   }
 }
 
-type Overlay = { type: 'start' | 'enemy' | 'generate' | 'investigations' } | { type: 'guess'; id: number } | { type: 'delete'; deck: SavedDeck }
+type Overlay = { type: 'start' | 'generate' | 'investigations' } | { type: 'deck'; side: Side } | { type: 'guess'; id: number } | { type: 'delete'; deck: SavedDeck }
 
 function App() {
   const [deck,setDeck]=useState(loadDeck)
@@ -226,7 +227,11 @@ function App() {
       </>:<>
         <div className="section-title battle-title"><div><div className="eyebrow">02 / THE DUEL</div><h1>第{duel.night}夜 <small>/ {duel.rules.finalNight}</small></h1></div><button className="quiet" disabled={!!pending} onClick={home}>{phase==='finished'?'デッキに戻る':'対戦を終了して戻る'}</button></div>
         <div className="fighters">{([0,1] as Side[]).map(i=>{const p=duel.players[i];return <div className={'panel fighter side'+i} key={i}><div className="fighter-line"><strong>{i===0?'あなた':'NPC'}</strong><span><b>{p.hp}</b> / {duel.rules.hp} HP</span></div><progress value={p.hp} max={duel.rules.hp} aria-label={(i===0?'あなた':'NPC')+'のHP'}/><div className="stats">山札 {p.deck.length}　手札 {p.hand.length}　捨て札 {p.discard.length}</div><div className="status">{p.status.noHeal&&<span>回復無効</span>}{p.status.limited&&<span>使用は1枚まで</span>}</div></div>})}</div>
-        <div className="opponent-tools"><button className="quiet" aria-haspopup="dialog" disabled={!!pending} onClick={() => setOverlay({ type: 'investigations' })}>調査記録</button><button className="quiet" aria-haspopup="dialog" disabled={!!pending} onClick={() => setOverlay({ type: 'enemy' })}>相手のデッキ</button></div>
+        <div className="battle-tools">
+          <button className="quiet" aria-haspopup="dialog" disabled={!!pending} onClick={() => setOverlay({ type: 'deck', side: 0 })}>自分のデッキ</button>
+          <button className="quiet" aria-haspopup="dialog" disabled={!!pending} onClick={() => setOverlay({ type: 'deck', side: 1 })}>相手のデッキ</button>
+          <button className="quiet" aria-haspopup="dialog" disabled={!!pending} onClick={() => setOverlay({ type: 'investigations' })}>調査記録</button>
+        </div>
         <div className="battle-layout"><section className="panel play-area">
           {pending && !showInvestigation && <p ref={insightCue} className="insight-cue" role="status">{pending.kind === 'seer' ? '占い師が相手の手札を透視！' : '預言者が相手の山札を透視！'}</p>}
           {duel.revealed.some(row=>row.length>0)&&<div className={'reveal '+(phase==='reveal'?'flipping':'')} aria-label="同時公開"><div className="eyebrow">✦　同時公開</div><div className="reveal-columns">{duel.revealed.map((row,i)=><div key={i}><h3>{i===0?'あなた':'NPC'}</h3><div className="duel-cards">{row.map(c=><CardTile role={c.role} key={c.id} glowing={i===0 && pending?.kind===c.role && pending.sourceId===c.id && !showInvestigation} disabled={c.disabled} detail={c.disabled?'効果無効':c.guess?'予想：'+card(c.guess).name:undefined}/>)}{!row.length&&<p>パス</p>}</div></div>)}</div></div>}
@@ -290,11 +295,15 @@ function App() {
           </div>
         </Sheet>
       )}
-      {overlay?.type === 'enemy' && duel && !pending && (
-        <Sheet title="相手のデッキ" onClose={closeOverlay}>
-          <p className="hint">対戦開始時の構成 · {duel.rules.deckSize}枚</p>
-          <DeckComposition entries={duel.deckComposition(1)} />
-        </Sheet>
+      {overlay?.type === 'deck' && duel && !pending && (
+        <DeckViewer
+          title={overlay.side === 0 ? '自分のデッキ' : '相手のデッキ'}
+          night={duel.night}
+          hp={duel.players[overlay.side].hp}
+          initial={duel.deckComposition(overlay.side)}
+          remaining={duel.drawPileComposition(overlay.side)}
+          onClose={closeOverlay}
+        />
       )}
       {overlay?.type === 'guess' && duel && (
         <Sheet title="暗殺者の予想" onClose={closeOverlay}>

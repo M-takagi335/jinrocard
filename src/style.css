@@ -65,7 +65,7 @@
   color: var(--gold);
   margin-left: 10px;
 }
-.opponent-tools {
+.battle-tools {
   display: flex;
   justify-content: flex-end;
   margin-bottom: 12px;
@@ -126,7 +126,7 @@
 .composition strong, .composition [aria-pressed=true] {
   color: var(--gold);
 }
-.match-decks button, .opponent-tools button, .prediction button, .sheet-header button {
+.match-decks button, .battle-tools button, .prediction button, .sheet-header button {
   min-height: 44px;
 }
 .match-decks button {
@@ -248,7 +248,7 @@
   border-radius: 5px;
 }
 
-.opponent-tools {
+.battle-tools {
   gap: 8px;
   flex-wrap: wrap;
 }
@@ -345,4 +345,51 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .insight-glow { animation: none; }
+}
+
+.deck-viewer-tabs button {
+  min-height: 44px;
+}
+.deck-viewer-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.deck-viewer-list li {
+  border-bottom: 1px solid var(--line);
+}
+.deck-viewer-list summary {
+  min-height: 44px;
+  padding: 10px 4px;
+  cursor: pointer;
+}
+.deck-viewer-list summary strong {
+  margin-left: 5px;
+}
+.deck-viewer-list summary span {
+  float: right;
+  color: var(--gold);
+}
+.deck-viewer-detail {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr);
+  align-items: center;
+  gap: 9px;
+  padding: 4px 7px 10px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.deck-viewer-detail .art {
+  height: 76px;
+  color: var(--gold);
+}
+
+.insight-card details[open] .insight-detail-label {
+  display: none;
+}
+
+.deck-viewer-context {
+  color: var(--muted);
+  font-size: 13px;
+  margin-bottom: 8px;
 }

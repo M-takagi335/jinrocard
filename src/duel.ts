@@ -20,7 +20,16 @@ export type Investigation = {
 type InvestigationSnapshot = Omit<Investigation, 'cards'> & { cards: Instance[]; revision: number }
 type Phase = 'select' | 'reveal' | 'resolve' | 'choice' | 'end' | 'finished'
 export type DeckEntry = Readonly<{ role: Role; count: number }>
-export type NpcView = { hand: readonly Instance[]; hp:number; enemyHp:number; max:number; noHeal:boolean; discard:readonly Instance[]; enemyDiscard:readonly Instance[]; enemyDeck:readonly DeckEntry[] }
+function composition(roles: readonly Role[]): readonly DeckEntry[] {
+  const counts = new Map<Role, number>()
+  for (const role of roles) counts.set(role, (counts.get(role) ?? 0) + 1)
+  // The role catalog determines display order independently of the actual draw order.
+  return Object.freeze(ROLES.flatMap(role => {
+    const count = counts.get(role)
+    return count === undefined ? [] : [Object.freeze({ role, count })]
+  }))
+}
+export type NpcView = { hand: readonly Instance[]; hp:number; enemyHp:number; max:number; noHeal:boolean; discard:readonly Instance[]; enemyDiscard:readonly Instance[]; enemyDeck:readonly DeckEntry[]; enemyDrawPile:readonly DeckEntry[] }
 type Config = { hp:number; deckSize:number; opening:number; nightlyDraw:number; handRefill:number; handLimit:number; maxPlays:number; finalNight:number; finalTieBreak:'hp'|'draw' }
 type Options = { rng?:()=>number; rules?:Partial<Config>; npc?: (view:NpcView)=>Play[] }
 export function shuffle<T>(input:readonly T[], rng:()=>number): T[] {
@@ -44,7 +53,13 @@ export function chooseNpc(view:NpcView, rng:()=>number): Play[] {
   const ranked = view.hand.map(c => ({c, score:value(c.role,view.hp,view.noHeal,view.discard.length)+rng()*3}))
     .sort((a,b)=>b.score-a.score)
   const amount = Math.min(view.max, ranked.length, ranked[1]?.score >= 3 && rng() < .74 ? 2 : 1)
-  const guesses = view.enemyDeck.flatMap(({role,count}) => Array<Role>(count).fill(role))
+  // Infer candidates using the same public counts that a player can inspect.
+  const pileCounts = new Map(view.enemyDrawPile.map(({ role, count }) => [role, count]))
+  const possible = view.enemyDeck.flatMap(({ role, count }) => {
+    const discarded = view.enemyDiscard.filter(card => card.role === role).length
+    return Array<Role>(Math.max(0, count - (pileCounts.get(role) ?? 0) - discarded)).fill(role)
+  })
+  const guesses = possible.length ? possible : view.enemyDeck.flatMap(({ role, count }) => Array<Role>(count).fill(role))
   return ranked.slice(0,amount).map(({c})=>c.role==='assassin'
     ? {id:c.id,guess:guesses[Math.floor(rng()*guesses.length)]} : {id:c.id})
 }
@@ -70,10 +85,6 @@ export class Duel {
   constructor(deck:Role[], enemy:Role[]=NPC_DECK, options:Options={}) {
     this.rules={...RULES,...options.rules}
     if(!validDeck(deck,this.rules.deckSize)||!validDeck(enemy,this.rules.deckSize)) throw new Error('デッキの枚数または投入上限が正しくありません。')
-    const composition = (roles: Role[]) => Object.freeze(ROLES.flatMap(role => {
-      const count = roles.filter(entry => entry === role).length
-      return count ? [Object.freeze({ role, count })] : []
-    }))
     this.initialDecks = [composition(deck), composition(enemy)]
     this.rng=options.rng??Math.random
     this.npc=options.npc??(view=>chooseNpc(view,this.rng))
@@ -88,6 +99,9 @@ export class Duel {
   }
   deckComposition(side: Side): readonly DeckEntry[] {
     return this.initialDecks[side]
+  }
+  drawPileComposition(side: Side): readonly DeckEntry[] {
+    return composition(this.players[side].deck.map(card => card.role))
   }
   investigationsFor(side: Side): Investigation[] {
     const opponent = other(side)
@@ -157,7 +171,7 @@ export class Duel {
     for(const i of sides) yield* this.trim(i)
     const p=this.players[1], enemy=this.players[0]
     this.npcPlays=this.npc({hand:p.hand.map(c=>({...c})), hp:p.hp, enemyHp:enemy.hp, max:this.max(1),
-      noHeal:p.status.noHeal,discard:p.discard.map(c=>({...c})),enemyDiscard:enemy.discard.map(c=>({...c})),enemyDeck:this.deckComposition(0)})
+      noHeal:p.status.noHeal,discard:p.discard.map(c=>({...c})),enemyDiscard:enemy.discard.map(c=>({...c})),enemyDeck:this.deckComposition(0),enemyDrawPile:this.drawPileComposition(0)})
     if(!this.accepts(1,this.npcPlays)) throw new Error('NPCが無効なカードを選択しました。')
     this.phase='select'
   }

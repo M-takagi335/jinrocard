@@ -26,7 +26,7 @@ export function InvestigationPanel({ records, onConfirm, onClose }: {
           {!onConfirm && <h3>{titles[kind]}</h3>}
           <p className="investigation-meta">第{night}夜 · {kind === 'seer' ? '相手の残り手札' : '相手の山札（上から順）'} · {cards.length}枚</p>
           <p className="hint">調査した時点の情報です。</p>
-          {cards.length === 0 ? <p>確認できるカードがありませんでした。</p> : (
+          {cards.length === 0 ? <p>確認できるカードがありません。</p> : (
             <ul className="investigation-cards" style={{ gridTemplateColumns: 'repeat(' + cards.length + ', minmax(0, 1fr))' }}>
               {cards.map(({ role, status }, index) => {
                 const spec = card(role)
@@ -35,7 +35,7 @@ export function InvestigationPanel({ records, onConfirm, onClose }: {
                   : labels[status]
                 return (
                   <li key={index} className={'card insight-card ' + spec.category}>
-                    <details>
+                    <details open={kind === 'seer'}>
                       <summary>
                         {kind === 'prophet' && <span className="insight-order">上から{index + 1}枚目</span>}
                         <Art role={role} />

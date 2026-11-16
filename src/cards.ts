@@ -11,7 +11,7 @@ export const CARDS = {
   knight: { name:'騎士', category:'guard', limit:2, icon:'盾', power:2, text:'相手からのダメージを合計2軽減。特殊攻撃にも有効。' },
   witch: { name:'魔女', category:'guard', limit:2, icon:'薬', power:4, text:'HPを4回復。攻撃後にHPが0なら回復できない。' },
   trap: { name:'罠師', category:'guard', limit:2, icon:'罠', power:2, text:'相手が襲撃した場合、襲撃を無効化し、特殊攻撃で2ダメージを返す。' },
-  seer: { name:'占い師', category:'intel', limit:2, icon:'瞳', power:2, text:'相手の残り手札をランダムに最大2枚、自分だけが確認。' },
+  seer: { name:'占い師', category:'intel', limit:2, icon:'瞳', power:1, text:'相手の残り手札からランダムに1枚を自分だけが確認。' },
   prophet: { name:'預言者', category:'intel', limit:2, icon:'星', power:3, text:'相手の山札の上から最大3枚、自分だけが確認。順序は変わらない。' },
   spy: { name:'密偵', category:'intel', limit:2, icon:'影', power:1, text:'相手が攻撃カードを出していれば1枚引く。' },
   jester: { name:'道化師', category:'intel', limit:2, icon:'戯', power:2, text:'相手が攻撃カードを出していなければ2枚引く。' },
