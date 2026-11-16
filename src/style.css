@@ -600,6 +600,12 @@
 .home-links {
   margin-top: 12px;
 }
+.home-catalog {
+  margin-top: 34px;
+}
+.home-catalog .card-text {
+  overflow-wrap: anywhere;
+}
 .guide h3 {
   margin-top: 16px;
   color: var(--gold);

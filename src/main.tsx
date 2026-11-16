@@ -327,7 +327,7 @@ function App() {
                 <dt>{CATEGORY.hex}</dt><dd>相手のカード効果を無効にしたり、行動を制限したりします。</dd>
               </dl>
               <h3>カードの例</h3>
-              <p>カードをタップすると詳細が見れます。20種類すべての効果はデッキ構築画面で確認できます。</p>
+              <p>カードをタップすると詳細が見れます。20種類すべての効果は下のカード一覧で確認できます。</p>
               <div className="guide-cards">
                 <div><CardTile role="wolf" onInspect={() => inspect('wolf')} /><p>相手にダメージを与える。</p></div>
                 <div><CardTile role="hunter" onInspect={() => inspect('hunter')} /><p>相手の襲撃を防ぐ。</p></div>
@@ -335,6 +335,17 @@ function App() {
               </div>
             </section>
           )}
+          <section className="home-catalog" aria-labelledby="home-catalog-title">
+            <div className="section-title"><h2 id="home-catalog-title">カード一覧</h2></div>
+            <div className="catalog">
+              {ROLES.map(role => (
+                <article className="deck-item" key={role}>
+                  <CardTile role={role} onInspect={() => inspect(role)} />
+                  <p className="card-text">{card(role).text}</p>
+                </article>
+              ))}
+            </div>
+          </section>
         </> : (
         <section className="builder" id="deck-builder" tabIndex={-1}>
           <div className="section-title builder-heading"><div><div className="eyebrow">01 / DECK BUILDER</div><h2>デッキ構築</h2></div></div>
