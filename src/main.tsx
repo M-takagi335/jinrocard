@@ -302,7 +302,6 @@ function App() {
           )
         })}</div>
         <div className="battle-tools">
-          <button className="quiet" disabled={!!pending} onClick={() => { home(); openMatchSetup() }}>デッキを選び直す</button>
           <button className="quiet" aria-haspopup="dialog" disabled={!!pending} onClick={() => setOverlay({ type: 'deck', side: 0 })}>自分のデッキ</button>
           <button className="quiet" aria-haspopup="dialog" disabled={!!pending} onClick={() => setOverlay({ type: 'deck', side: 1 })}>相手のデッキ</button>
           <button className="quiet" aria-haspopup="dialog" disabled={!!pending} onClick={() => setOverlay({ type: 'investigations' })}>調査記録</button>
