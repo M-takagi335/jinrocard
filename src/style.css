@@ -478,6 +478,7 @@
 }
 .builder-deck, .builder-actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   min-width: 0;
@@ -489,6 +490,41 @@
   color: var(--gold);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+.builder-save-status {
+  padding: 2px 6px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  color: var(--gold);
+  font-size: 12px;
+}
+.builder-save-status[data-saved=true] {
+  color: #c5dbb5;
+}
+.builder-secondary {
+  margin-bottom: 10px;
+}
+.builder-secondary button {
+  font-size: 13px;
+}
+.save-deck-form p {
+  flex-basis: 100%;
+  overflow-wrap: anywhere;
+}
+html:has(.builder-sheet[open]) {
+  overflow: hidden;
+}
+.builder-sheet {
+  overflow: hidden;
+}
+.builder-sheet .sheet-body {
+  min-height: 0;
+}
+.builder-sheet:has(~ .sheet[open]) .sheet-body {
+  overflow: hidden;
+}
+.builder-sheet .sheet-footer {
+  padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
 }
 .builder-missing {
   flex-basis: 100%;
@@ -514,7 +550,10 @@
     margin-bottom: 8px;
   }
   .builder-deck {
-    justify-content: space-between;
+    gap: 5px 8px;
+  }
+  .builder-deck strong {
+    flex: 1 1 100%;
   }
   .builder-actions {
     gap: 6px;

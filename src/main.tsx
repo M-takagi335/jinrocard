@@ -46,14 +46,22 @@ function CardLog({ text, onInspect }: { text: string; onInspect: (role: Role) =>
   })
 }
 
+function sameComposition(first: readonly Role[], second: readonly Role[]) {
+  return [...first].sort().join() === [...second].sort().join()
+}
+
 function App() {
   const [deck,setDeck]=useState(loadDeck)
   const [library, setLibrary] = useState(readLibrary)
   const saved = library.decks
   const [name, setName] = useState('')
   const [saveName, setSaveName] = useState('')
+  const [saveMode, setSaveMode] = useState<'new' | 'copy' | 'overwrite'>('new')
   const [editingId, setEditingId] = useState<string | null>(null)
-  const [baseline, setBaseline] = useState<readonly Role[]>(STARTER)
+  const [draftBaseline, setDraftBaseline] = useState<readonly Role[]>(STARTER)
+  const savedEntry = saved.find(entry => entry.id === editingId)
+  const unchanged = !!savedEntry && sameComposition(deck, savedEntry.cards)
+  const saveStatus = !savedEntry ? '未保存' : unchanged ? '保存済み' : '変更あり・未保存'
   const [libraryId, setLibraryId] = useState<string | null>(null)
   const [replacement, setReplacement] = useState<(() => void) | null>(null)
   const [notice, setNotice] = useState('')
@@ -185,35 +193,42 @@ function App() {
     setEditingId(entry.id)
     setName(entry.name)
     setDeck([...entry.cards])
-    setBaseline(entry.cards)
+    setDraftBaseline([])
   }
   const replaceDraft = (apply: () => void) => {
-    if ([...deck].sort().join() !== [...baseline].sort().join()) {
+    if (savedEntry ? !unchanged : !!name || !sameComposition(deck, draftBaseline)) {
       setReplacement(() => apply)
     } else {
       apply()
     }
   }
-  const openDraft = (entry: NamedDeck, id: string | null = null) => replaceDraft(() => {
+  const loadDraft = (entry: NamedDeck, id: string | null = null) => {
     setEditingId(id)
     setName(entry.name)
     setDeck([...entry.cards])
-    setBaseline(id ? entry.cards : [])
+    setDraftBaseline([])
     setNotice('')
     closeOverlay()
     requestAnimationFrame(() => document.getElementById('deck-builder-title')?.focus())
-  })
-  const openSaveDeck = () => {
-    setSaveName(name)
+  }
+  const openSaveDeck = (mode: 'new' | 'copy' | 'overwrite') => {
+    setSaveMode(mode)
+    setSaveName(mode === 'copy' ? name.slice(0, deckNameLimit - 4) + 'のコピー' : name)
     setNotice('')
     setOverlay({ type: 'save' })
   }
   const saveDeck = () => {
-    if (!validDeck(deck) || !saveName.trim()) return
-    const entry = { id: editingId ?? newDeckId(), name: saveName.trim(), cards: [...deck] }
-    if (persist(current => current.some(item => item.id === entry.id)
-      ? current.map(item => item.id === entry.id ? entry : item)
-      : [...current, entry], '「' + entry.name + '」を保存しました。')) {
+    if (!validDeck(deck)) return
+    const target = saveMode === 'overwrite' ? savedEntry : undefined
+    if (saveMode === 'overwrite' && (!target || unchanged)) return
+    const label = target?.name ?? saveName.trim()
+    if (!label || label.length > deckNameLimit) return
+    const entry = { id: target?.id ?? newDeckId(), name: label, cards: [...deck] }
+    if (persist(current => {
+      if (!target) return [...current, entry]
+      if (!current.some(item => item.id === target.id)) throw new Error('保存先のデッキがありません。')
+      return current.map(item => item.id === target.id ? entry : item)
+    }, '「' + entry.name + '」を保存しました。')) {
       editDeck(entry)
       closeOverlay()
     }
@@ -320,21 +335,28 @@ function App() {
         </> : (
         <section className="builder" aria-labelledby="deck-builder-title">
           <div className="section-title builder-heading"><div><div className="eyebrow">01 / DECK BUILDER</div><h2 id="deck-builder-title" tabIndex={-1}>デッキ構築</h2></div></div>
-          <div className="builder-launchers">
-            <button className="primary" aria-haspopup="dialog" onClick={() => setOverlay({ type: 'generate' })}>おまかせ生成</button>
-            <button className="quiet" aria-haspopup="dialog" onClick={() => { setLibraryId(editingId); setNotice(''); setOverlay({ type: 'library' }) }}>保存済みデッキ</button>
-          </div>
-          <div className="builder-summary">
+          <section className="panel builder-summary" aria-label="編集中のデッキ">
             <div className="builder-deck">
-              <strong>{name.trim() || '編集中のデッキ'}</strong>
-              <span className="builder-count">{deck.length}/{RULES.deckSize}枚</span>
+              <strong>{name.trim() || '新規デッキ'}</strong>
+              <span className="builder-count">{deck.length} / {RULES.deckSize}枚</span>
+              <span className="builder-save-status" role="status" data-saved={unchanged}>{saveStatus}</span>
             </div>
             <div className="builder-actions">
-              <button className="quiet" onClick={() => openDraft({ name: '', cards: [] })}>新規</button>
-              <button className="primary" aria-haspopup="dialog" disabled={!!deckError} onClick={openSaveDeck}>保存</button>
-              <button className="quiet" aria-haspopup="dialog" onClick={() => { setNotice(''); setOverlay({ type: 'other' }) }}>その他</button>
+              <button className="primary" aria-haspopup="dialog" disabled={!!deckError || unchanged}
+                onClick={() => openSaveDeck(savedEntry ? 'overwrite' : 'new')}>デッキを保存</button>
+              {savedEntry && <button className="quiet" aria-haspopup="dialog" disabled={!!deckError}
+                onClick={() => openSaveDeck('copy')}>別名で保存</button>}
             </div>
-            {deckError && <p className="builder-missing" role="status">{missing > 0 ? 'あと' + missing + '枚必要です。' : deckError}</p>}
+            {deckError && <p className="builder-missing" role="status">{missing > 0
+              ? 'あと' + missing + '枚追加すると保存できます。' : deckError}</p>}
+          </section>
+          <div className="builder-launchers">
+            <button className="quiet" aria-haspopup="dialog" onClick={() => setOverlay({ type: 'generate' })}>おまかせ生成</button>
+            <button className="quiet" aria-haspopup="dialog" onClick={() => { setLibraryId(editingId); setNotice(''); setOverlay({ type: 'library' }) }}>保存済みデッキ</button>
+          </div>
+          <div className="builder-actions builder-secondary">
+            <button className="quiet" onClick={() => replaceDraft(() => loadDraft({ name: '', cards: [] }))}>新規作成</button>
+            <button className="quiet" aria-haspopup="dialog" onClick={() => { setNotice(''); setOverlay({ type: 'other' }) }}>その他</button>
           </div>
           {notice && <p className="notice builder-notice" role="status">{notice}</p>}
           <p className="hint">カードの下の ＋ / − で投入枚数を変更。20枚揃えると保存できます。</p>
@@ -428,20 +450,20 @@ function App() {
         <InvestigationPanel records={[...investigations].reverse()} onClose={closeOverlay} onInspect={inspect} />
       )}
       {overlay?.type === 'generate' && (
-        <DeckGenerator usedNames={saved.map(entry => entry.name)} onClose={closeOverlay} onEdit={openDraft} />
+        <DeckGenerator usedNames={saved.map(entry => entry.name)} onClose={closeOverlay} onBeforeGenerate={replaceDraft} onEdit={loadDraft} />
       )}
       {overlay?.type === 'library' && (
-        <Sheet title="保存済みデッキ" onClose={closeOverlay} className="builder-library"
-          footer={libraryPreview && <button className="primary" onClick={() => openDraft(libraryPreview, libraryPreview.id)}>編集画面に読み込む</button>}>
+        <Sheet title="保存済みデッキ" onClose={closeOverlay} className="builder-sheet builder-library"
+          footer={libraryPreview && <button className="primary" onClick={() => replaceDraft(() => loadDraft(libraryPreview, libraryPreview.id))}>編集する</button>}>
           {saved.length ? <ul className="match-options">
             {saved.map(entry => (
               <li key={entry.id}>
                 <button className="quiet match-option" aria-pressed={entry.id === libraryId} onClick={() => setLibraryId(entry.id)}>
-                  <strong>{entry.name}</strong><span>{entry.cards.length}枚</span>
+                  <strong>{entry.name}</strong><span>{entry.cards.length} / {RULES.deckSize}枚</span>
                 </button>
               </li>
             ))}
-          </ul> : <p className="hint">保存済みのデッキはありません。</p>}
+          </ul> : <p className="hint">保存済みデッキはありません。</p>}
           {libraryPreview && <section>
             <div className="library-heading">
               <h3>{libraryPreview.name}</h3>
@@ -456,7 +478,7 @@ function App() {
         </Sheet>
       )}
       {overlay?.type === 'other' && (
-        <Sheet title="その他" onClose={closeOverlay}>
+        <Sheet title="その他" className="builder-sheet" onClose={closeOverlay}>
           <label className="quiet import-button">
             JSONをインポート
             <input type="file" accept=".json,application/json" aria-label="JSONをインポート" onChange={event => {
@@ -478,18 +500,28 @@ function App() {
         </Sheet>
       )}
       {replacement && (
-        <Sheet title="編集中のデッキを置き換えますか？" onClose={() => setReplacement(null)}
+        <Sheet title="編集中のデッキを置き換えますか？" className="builder-sheet" onClose={() => setReplacement(null)}
           footer={<button className="primary" onClick={() => { setReplacement(null); replacement() }}>置き換える</button>}>
           <p>現在の未保存の変更は失われます。</p>
         </Sheet>
       )}
       {overlay?.type === 'save' && (
-        <Sheet title={editingId ? '変更を保存' : 'デッキを保存'} onClose={closeOverlay}>
+        <Sheet title={saveMode === 'overwrite' ? '上書き保存' : saveMode === 'copy' ? '別名で保存' : 'デッキを保存'}
+          className="builder-sheet" onClose={closeOverlay}>
           <form className="deck-editor save-deck-form" onSubmit={event => { event.preventDefault(); saveDeck() }}>
-            <label htmlFor="save-deck-name">デッキ名</label>
-            <input id="save-deck-name" value={saveName} maxLength={deckNameLimit} placeholder="例：月夜の狩人"
-              onChange={event => setSaveName(event.target.value)} />
-            <button className="primary" type="submit" disabled={!!deckError || !saveName.trim()}>保存する</button>
+            {saveMode === 'overwrite' ? (
+              <p>「{savedEntry?.name}」を現在のカード構成で上書きします。</p>
+            ) : (
+              <>
+                <label htmlFor="save-deck-name">デッキ名</label>
+                <input id="save-deck-name" value={saveName} maxLength={deckNameLimit} placeholder="例：月夜の狩人"
+                  onChange={event => setSaveName(event.target.value)} />
+              </>
+            )}
+            <button className="primary" type="submit"
+              disabled={!!deckError || (saveMode === 'overwrite' ? !savedEntry || unchanged : !saveName.trim())}>
+              {saveMode === 'overwrite' ? '上書きする' : '保存する'}
+            </button>
           </form>
           {notice && <p className="notice" role="alert">{notice}</p>}
         </Sheet>
@@ -527,7 +559,7 @@ function App() {
         />
       )}
       {overlay?.type === 'delete' && (
-        <Sheet title="保存したデッキを削除" onClose={() => setOverlay({ type: 'library' })}>
+        <Sheet title="保存したデッキを削除" className="builder-sheet" onClose={() => setOverlay({ type: 'library' })}>
           <p>「{overlay.deck.name}」を削除しますか？</p>
           <button className="quiet action" onClick={() => deleteDeck(overlay.deck)}>削除する</button>
         </Sheet>

@@ -3,9 +3,10 @@ import type { NamedDeck } from './decks.ts'
 import { DECK_TYPES, PROFILES, generateDecks, type DeckType } from './generateDeck.ts'
 import { Sheet } from './Sheet.tsx'
 
-export function DeckGenerator({ usedNames, onClose, onEdit }: {
+export function DeckGenerator({ usedNames, onClose, onBeforeGenerate, onEdit }: {
   usedNames: string[]
   onClose: () => void
+  onBeforeGenerate: (generate: () => void) => void
   onEdit: (deck: NamedDeck) => void
 }) {
   const [type, setType] = useState<DeckType>('balanced')
@@ -21,12 +22,12 @@ export function DeckGenerator({ usedNames, onClose, onEdit }: {
   }
 
   return (
-    <Sheet title="おまかせ生成" onClose={onClose}
-      footer={<button className="primary" onClick={generate}>生成して編集</button>}>
+    <Sheet title="おまかせ生成" className="builder-sheet" onClose={onClose}
+      footer={<button className="primary" onClick={() => onBeforeGenerate(generate)}>生成して編集</button>}>
       <div className="generator-types" role="group" aria-label="デッキタイプ">
         {DECK_TYPES.map(entry => (
           <button key={entry} className="quiet" aria-pressed={entry === type} onClick={() => { setType(entry); setError('') }}>
-            <strong>{PROFILES[entry].label}</strong>
+            <strong>{entry === 'intel' ? '情報型' : entry === 'random' ? 'ランダム型' : PROFILES[entry].label}</strong>
             <span>{PROFILES[entry].description}</span>
           </button>
         ))}
