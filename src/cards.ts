@@ -1,4 +1,4 @@
-export const RULES = { hp: 20, deckSize: 20, opening: 5, nightlyDraw: 1, handRefill: 3, handLimit: 7, maxPlays: 2, finalNight: 15, finalTieBreak: 'hp' } as const
+export const RULES = { hp: 20, deckSize: 20, opening: 5, nightlyDraw: 1, handRefill: 2, handLimit: 7, maxPlays: 2, finalNight: 15, finalTieBreak: 'hp' } as const
 type Category = 'attack' | 'guard' | 'intel' | 'supply' | 'hex'
 type Spec = { name: string; category: Category; limit: number; icon: string; text: string; power?: number; lowHp?: number; boosted?: number; recoil?: number }
 const CARD_DEFINITIONS = {
@@ -35,7 +35,17 @@ export const card = (role: Role) => CARDS[role]
 export const CATEGORY = { attack:'攻撃', guard:'防御・回復', intel:'情報・心理戦', supply:'回収・ドロー', hex:'妨害' }
 export const STARTER: Role[] = ['wolf','wolf','wolf','dire','assassin','fox','cat','hunter','hunter','knight','witch','witch','trap','seer','spy','medium','mason','mad','curse','tyrant']
 export const NPC_DECK: Role[] = ['wolf','wolf','dire','dire','fox','fox','assassin','cat','hunter','hunter','knight','witch','witch','trap','prophet','jester','keeper','merchant','mad','curse']
-export function validDeck(roles: Role[], size: number = RULES.deckSize) {
-  return roles.length === size && roles.every(r => ROLES.includes(r)) &&
-    ROLES.every(r => roles.filter(x => x === r).length <= card(r).limit)
+export function validDeck(roles: readonly unknown[], size: number = RULES.deckSize) {
+  if (roles.length !== size) return false
+  const counts = new Map<Role, number>()
+  for (let index = 0; index < size; index++) {
+    if (!Object.hasOwn(roles, index)) return false
+    const role = roles[index]
+    if (typeof role !== 'string' || !Object.hasOwn(CARDS, role)) return false
+    const id = role as Role
+    const count = (counts.get(id) ?? 0) + 1
+    if (count > card(id).limit) return false
+    counts.set(id, count)
+  }
+  return true
 }

@@ -11,12 +11,14 @@ function seeded(seed: number) {
 test('all generator types make valid variable decks and satisfy their minimum categories', () => {
   const rng = seeded(29)
   for (const type of DECK_TYPES) {
+    const profile = PROFILES[type]
+    if ('preset' in profile) continue
     const signatures = new Set<string>()
     for (let trial = 0; trial < 100; trial++) {
       const deck = generateDeck(type, rng)
       assert.equal(deck.length, 20)
       assert.ok(validDeck(deck), type)
-      for (const [category, minimum] of PROFILES[type].minimums) {
+      for (const [category, minimum] of profile.minimums) {
         assert.ok(deck.filter(role => card(role).category === category).length >= minimum)
       }
       signatures.add([...deck].sort().join(','))
@@ -61,4 +63,24 @@ test('the same generator supplies both sides of an NPC duel', () => {
     while (duel.prompt) assert.ok(duel.answer(duel.prompt.options[0].id))
     assert.equal(duel.phase, 'end')
   }
+})
+
+test('intel uses the exact tested assassin-support recipe in both single and bulk generation', () => {
+  const expected = {
+    wolf: 3, assassin: 2, fox: 1, cat: 1, hunter: 1, knight: 2, witch: 2, trap: 2,
+    seer: 2, prophet: 2, mad: 1, curse: 1,
+  }
+  const check = (roles: ReturnType<typeof generateDeck>) => {
+    assert.ok(validDeck(roles))
+    const counts: Record<string, number> = {}
+    for (const role of roles) counts[role] = (counts[role] ?? 0) + 1
+    assert.deepEqual(counts, expected)
+  }
+  check(generateDeck('intel', seeded(111)))
+  check(generateDeck('intel', seeded(4)))
+  const previous = generateDecks(['intel'], 1)
+  const batch = generateDecks(['intel'], 3, ['情報戦型01'], previous)
+  assert.deepEqual(batch.map(entry => entry.name), ['情報戦型02', '情報戦型03', '情報戦型04'])
+  batch.forEach(entry => check(entry.cards))
+  assert.notStrictEqual(batch[0].cards, batch[1].cards)
 })

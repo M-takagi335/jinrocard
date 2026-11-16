@@ -5,10 +5,11 @@ type Category = ReturnType<typeof card>['category']
 type Profile = {
   label: string
   description: string
+} & ({ preset: readonly Role[] } | {
   minimums: readonly [Category, number][]
   weights: Partial<Record<Category, number>>
   roleWeights?: Partial<Record<Role, number>>
-}
+})
 
 export const PROFILES = {
   balanced: {
@@ -29,10 +30,13 @@ export const PROFILES = {
     roleWeights: { witch: 1.5, trap: 1.3, cat: 2, dire: .6 },
   },
   intel: {
-    label: '情報戦型', description: '占い師・預言者・暗殺者で相手の手を読む',
-    minimums: [['intel', 6], ['attack', 5], ['guard', 3]],
-    weights: { intel: 5, attack: 2 },
-    roleWeights: { seer: 2, prophet: 2, assassin: 7 },
+    label: '情報戦型', description: '占い師・預言者・暗殺者を軸にした検証済みの固定構成',
+    // 「情報＋暗殺者支援」 in reports/intel-balance-tables.md.
+    preset: [
+      'wolf','wolf','wolf','assassin','assassin','fox','cat','hunter',
+      'knight','knight','witch','witch','trap','trap','seer','seer',
+      'prophet','prophet','mad','curse',
+    ],
   },
   combo: {
     label: 'コンボ型', description: '霊媒師・墓守・共有者・商人でカードを回す',
@@ -52,6 +56,11 @@ export const DECK_TYPES = Object.keys(PROFILES) as DeckType[]
 export function generateDeck(type: DeckType, rng = Math.random): Role[] {
   if (!Object.hasOwn(PROFILES, type)) throw new Error('デッキタイプが見つかりません。')
   const profile: Profile = PROFILES[type]
+  if ('preset' in profile) {
+    if (!validDeck(profile.preset)) throw new Error('固定デッキの枚数または投入上限が正しくありません。')
+    return [...profile.preset]
+  }
+  const { weights, roleWeights, minimums } = profile
   const counts = new Map<Role, number>()
   const deck: Role[] = []
 
@@ -59,7 +68,7 @@ export function generateDeck(type: DeckType, rng = Math.random): Role[] {
     const candidates = ROLES.flatMap(role => {
       const spec = card(role)
       if ((category && spec.category !== category) || (counts.get(role) ?? 0) >= spec.limit) return []
-      return [{ role, weight: (profile.weights[spec.category] ?? 1) * (profile.roleWeights?.[role] ?? 1) }]
+      return [{ role, weight: (weights[spec.category] ?? 1) * (roleWeights?.[role] ?? 1) }]
     })
     const total = candidates.reduce((sum, candidate) => sum + candidate.weight, 0)
     if (total <= 0) throw new Error('投入上限内で必要なカードを揃えられませんでした。')
@@ -76,7 +85,7 @@ export function generateDeck(type: DeckType, rng = Math.random): Role[] {
     throw new Error('カードの抽選に失敗しました。')
   }
 
-  for (const [category, minimum] of profile.minimums) {
+  for (const [category, minimum] of minimums) {
     for (let index = 0; index < minimum; index++) pick(category)
   }
   while (deck.length < RULES.deckSize) pick()
@@ -104,15 +113,16 @@ export function generateDecks(
 
   for (let index = 0; index < size; index++) {
     const type = types[index % types.length]
+    const fixedComposition = 'preset' in PROFILES[type]
     let best: { cards: Role[]; counts: number[]; distance: number } | undefined
     for (let attempt = 0; attempt < 24; attempt++) {
       const cards = generateDeck(type, rng)
       const counts = composition(cards)
-      if (known.has(signature(counts))) continue
+      if (!fixedComposition && known.has(signature(counts))) continue
       const distance = Math.min(...chosen.map(other =>
         counts.reduce((sum, count, i) => sum + Math.abs(count - other[i]), 0)))
       if (!best || distance > best.distance) best = { cards, counts, distance }
-      if (!chosen.length || distance >= 12) break
+      if (fixedComposition || !chosen.length || distance >= 12) break
     }
     if (!best) throw new Error('異なる構成を生成できませんでした。もう一度お試しください。')
     known.add(signature(best.counts))

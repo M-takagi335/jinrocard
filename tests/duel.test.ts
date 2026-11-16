@@ -282,7 +282,7 @@ test('playing two repeatedly refills both hands and reuses the discard without d
     game.resolve()
     while (game.prompt) assert.ok(game.answer(game.prompt.options[0].id))
     for (const player of game.players) {
-      assert.ok(player.hand.length >= 3)
+      assert.ok(player.hand.length >= 2)
       const ids = [...player.hand, ...player.deck, ...player.discard].map(({id}) => id)
       assert.equal(new Set(ids).size, 20)
       assert.equal(ids.length, 20)
@@ -486,4 +486,46 @@ test('NPC assassin guesses from remaining public roles and omits a guess if none
   }
   assert.deepEqual(chooseNpc(view, () => 0), [{ id: 1, guess: 'hunter' }])
   assert.deepEqual(chooseNpc({ ...view, enemyRemaining: [] }, () => 0), [{ id: 1 }])
+})
+
+test('default night-end refill draws exactly the shortage below two cards', () => {
+  for (const leftover of [0, 1, 2, 3]) {
+    const deck: Role[] = ['hunter','knight','trap','witch','seer','prophet']
+    const game = new Duel(deck, deck, {
+      rules: { deckSize: deck.length, opening: leftover + 1 },
+      rng: () => .99999,
+      npc: view => view.hand.slice(0, 2).map(({ id }) => ({ id })),
+    })
+    assert.ok(game.lock(game.players[0].hand.slice(0, 2).map(({ id }) => ({ id }))))
+    assert.deepEqual(game.players.map(player => player.hand.length), [leftover, leftover])
+    game.resolve()
+    assert.deepEqual(game.players.map(player => player.hand.length), Array(2).fill(Math.max(2, leftover)))
+    const refill = game.log.filter(entry => entry.text.includes('夜終了時に手札を'))
+    assert.equal(refill.length, leftover < 2 ? 2 : 0)
+    assert.ok(refill.every(entry => entry.text.endsWith((2 - leftover) + '枚補充した。')))
+  }
+})
+
+test('standard play starts with five plus one nightly draw and caps the hand at seven', () => {
+  const deck: Role[] = ['hunter','hunter','hunter','knight','knight','witch','witch','trap','trap','seer','seer','prophet','prophet','mad','mad','curse','curse','keeper','medium','cat']
+  const game = new Duel(deck, deck, {
+    rng: () => .99999,
+    npc: view => view.hand.slice(0, 1).map(({ id }) => ({ id })),
+  })
+  assert.equal(game.rules.opening, 5)
+  assert.equal(game.rules.nightlyDraw, 1)
+  assert.equal(game.rules.handLimit, 7)
+  assert.equal(game.rules.maxPlays, 2)
+  assert.deepEqual(game.players.map(player => player.hand.length), [6, 6])
+  assert.equal(game.log.filter(entry => entry.text.endsWith('は1枚引いた。')).length, 2)
+  assert.ok(game.lock([{ id: game.players[0].hand[0].id }]))
+  game.resolve()
+  assert.ok(game.nextNight())
+  assert.deepEqual(game.players.map(player => player.hand.length), [6, 6])
+  assert.equal(game.log.filter(entry => entry.night === 2 && entry.text.endsWith('は1枚引いた。')).length, 2)
+
+  const full = new Duel(deck, deck, { rules: { opening: 7 }, rng: () => .99999 })
+  assert.deepEqual(full.players.map(player => player.hand.length), [8, 8])
+  assert.ok(full.answer(full.prompt!.options[0].id))
+  assert.deepEqual(full.players.map(player => player.hand.length), [7, 7])
 })

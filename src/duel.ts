@@ -31,7 +31,8 @@ function composition(roles: readonly Role[]): readonly DeckEntry[] {
 }
 export type NpcView = { hand: readonly Instance[]; hp:number; enemyHp:number; max:number; noHeal:boolean; discard:readonly Instance[]; enemyDiscard:readonly Instance[]; enemyDeck:readonly DeckEntry[]; enemyRemaining:readonly DeckEntry[] }
 type Config = { hp:number; deckSize:number; opening:number; nightlyDraw:number; handRefill:number; handLimit:number; maxPlays:number; finalNight:number; finalTieBreak:'hp'|'draw' }
-type Options = { rng?:()=>number; rules?:Partial<Config>; npc?: (view:NpcView)=>Play[] }
+type IntelDraw = Readonly<Partial<Record<'seer' | 'prophet', number>>>
+type Options = { rng?:()=>number; rules?:Partial<Config>; npc?: (view:NpcView)=>Play[]; intelDraw?: IntelDraw }
 export function shuffle<T>(input:readonly T[], rng:()=>number): T[] {
   const a = [...input]
   for(let i=a.length-1;i>0;i--) { const j=Math.floor(rng()*(i+1)); [a[i],a[j]]=[a[j],a[i]] }
@@ -72,6 +73,7 @@ export class Duel {
   winner:Side|'draw'|null=null
   reason=''
   prompt:Prompt|null=null
+  private readonly intelDraw: IntelDraw
   private rng:()=>number
   private npc:(view:NpcView)=>Play[]
   private npcPlays:Play[]=[]
@@ -82,6 +84,7 @@ export class Duel {
     if(!validDeck(deck,this.rules.deckSize)||!validDeck(enemy,this.rules.deckSize)) throw new Error('デッキの枚数または投入上限が正しくありません。')
     this.initialDecks = [composition(deck), composition(enemy)]
     this.rng=options.rng??Math.random
+    this.intelDraw = { ...options.intelDraw }
     this.npc=options.npc??(view=>chooseNpc(view,this.rng))
     let id=0
     const prepare=(roles:Role[]):Player=>({
@@ -315,6 +318,11 @@ export class Duel {
       const p=this.players[i], spec=card(c.role)
       const attacks=this.revealed[other(i)].some(x=>card(x.role).category==='attack')
       switch(c.role) {
+        case 'seer': case 'prophet': {
+          const bonus = this.intelDraw[c.role] ?? 0
+          if (bonus > 0) this.draw(i, bonus)
+          break
+        }
         case 'spy': case 'jester':
           if(attacks===(c.role==='spy')) this.draw(i,spec.power!)
           else this.write(who[i]+'の'+spec.name+'は条件を満たさなかった。')
