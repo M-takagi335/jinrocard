@@ -152,86 +152,26 @@
   }
 }
 
-.generator-launch {
-  margin-bottom: 14px;
-  background: linear-gradient(145deg, #762d40, #4b1c2a);
-  color: #ffe3b8;
-  border-color: #ad7165;
-}
-.generator-launch:hover:not(:disabled) {
-  background: #87364b;
-}
-.generator {
-  display: grid;
-  gap: 12px;
-}
-.generator h3:focus {
-  outline: none;
-}
-.generator .hint {
-  margin: 0;
-}
-.generator-buttons {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 7px;
-}
-.generator-buttons button, .generator-types button, .generator-results button {
-  min-height: 44px;
-}
-.generator button[aria-pressed=true] {
-  color: var(--gold);
-  border-color: #ba866b;
-  background: #432633;
-}
-.generator-types, .generator-results {
+.generator-types {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 7px;
 }
-.generator-types button, .generator-results button {
+.generator-types button {
+  min-height: 44px;
   text-align: left;
   display: grid;
   gap: 4px;
   width: 100%;
-}
-.generator-types span, .generator-results small {
-  color: var(--muted);
-}
-.generator-results {
-  list-style: none;
-  margin: 0;
-  padding: 0;
   overflow-wrap: anywhere;
 }
-.generator-preview {
-  display: grid;
-  gap: 9px;
-  border-top: 1px solid var(--line);
-  padding-top: 12px;
+.generator-types button[aria-pressed=true] {
+  color: var(--gold);
+  border-color: #ba866b;
+  background: #432633;
 }
-.generator-preview input {
-  width: 100%;
-  min-height: 44px;
-  padding: 8px 10px;
-  border: 1px solid var(--line);
-  border-radius: 5px;
-  background: #15121b;
-  color: var(--ink);
-}
-.generator-feedback {
-  position: sticky;
-  bottom: 0;
-  margin: 0;
-  padding: 8px;
-  border: 1px solid var(--line);
-  border-radius: 5px;
-  background: var(--panel);
-}
-@media (max-width: 360px) {
-  .generator-types {
-    grid-template-columns: 1fr;
-  }
+.generator-types span {
+  color: var(--muted);
 }
 
 .npc-deck-type {
@@ -517,6 +457,22 @@
   .match-card-list li { grid-template-columns: 48px minmax(0, 1fr); }
 }
 
+.builder-launchers {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  max-width: 480px;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.builder-launchers button, .builder-actions button {
+  min-height: 44px;
+}
+.builder-library .match-card-list li {
+  grid-template-columns: clamp(72px, 18vw, 96px) minmax(0, 1fr);
+}
+.json-export-heading {
+  margin-top: 16px;
+}
 .builder-summary {
   display: flex;
   flex-wrap: wrap;
@@ -544,16 +500,8 @@
   color: var(--muted);
   font-size: 13px;
 }
-.manage-launch {
-  display: none;
-}
 .builder-notice {
   margin-bottom: 12px;
-}
-.management-reset {
-  border-top: 1px solid var(--line);
-  margin-top: 12px;
-  padding-top: 12px;
 }
 @media (max-width: 580px) {
   .builder {
@@ -562,8 +510,7 @@
   .builder-heading {
     margin-bottom: 7px;
   }
-  .builder-heading .eyebrow,
-  .builder-desktop {
+  .builder-heading .eyebrow {
     display: none;
   }
   .builder-summary {
@@ -574,17 +521,15 @@
   .builder-deck {
     justify-content: space-between;
   }
-  .builder-actions .primary {
-    flex: 1;
-    padding-inline: 8px;
+  .builder-actions {
+    gap: 6px;
   }
-  .manage-launch {
-    display: inline-flex;
-    min-height: 46px;
-    align-items: center;
+  .builder-actions button {
+    padding-inline: 12px;
   }
-  .builder .controls {
-    padding-top: 8px;
+  .builder .quantity button {
+    min-height: 44px;
+    min-width: 44px;
   }
 }
 
@@ -671,21 +616,4 @@
   .home-links button {
     min-height: 44px;
   }
-}
-.generator-save-form {
-  display: grid;
-  gap: 10px;
-}
-.generator-save-form label {
-  display: grid;
-  gap: 4px;
-}
-.generator-save-form input {
-  width: 100%;
-  min-height: 44px;
-  padding: 8px 10px;
-  border: 1px solid var(--line);
-  border-radius: 5px;
-  background: #15121b;
-  color: var(--ink);
 }
