@@ -1,8 +1,10 @@
 import { useEffect, useId, useReducer, useState } from 'react'
 import { createRoot } from 'react-dom/client'
-import { card, CATEGORY, ROLES, RULES, STARTER, validDeck, type Role } from './cards.ts'
+import { card, CATEGORY, NPC_DECK, ROLES, RULES, STARTER, validDeck, type Role } from './cards.ts'
 import { Duel, type Instance, type Play, type Side } from './duel.ts'
-import { deckNameLimit, exportDeck, importDeck, loadSavedDecks, storeSavedDecks, type SavedDeck } from './decks.ts'
+import { deckNameLimit, exportDeck, importDeck, loadSavedDecks, storeSavedDecks, type NamedDeck, type SavedDeck } from './decks.ts'
+import { DeckGenerator } from './DeckGenerator.tsx'
+import { DECK_TYPES, PROFILES, generateDeck, type DeckType } from './generateDeck.ts'
 import { DeckComposition, Sheet } from './Sheet.tsx'
 import './style.css'
 
@@ -64,7 +66,7 @@ function readLibrary(): SavedDeck[] {
   }
 }
 
-type Overlay = { type: 'start' | 'enemy' } | { type: 'guess'; id: number } | { type: 'delete'; deck: SavedDeck }
+type Overlay = { type: 'start' | 'enemy' | 'generate' } | { type: 'guess'; id: number } | { type: 'delete'; deck: SavedDeck }
 
 function App() {
   const [deck,setDeck]=useState(loadDeck)
@@ -74,6 +76,9 @@ function App() {
   const [notice, setNotice] = useState('')
   const [overlay, setOverlay] = useState<Overlay | null>(null)
   const [battleDeck, setBattleDeck] = useState<Role[]>([])
+  const [battleEnemy, setBattleEnemy] = useState<Role[]>([])
+  const [npcType, setNpcType] = useState<DeckType | 'default'>('default')
+  const [matchError, setMatchError] = useState('')
   const [filter,setFilter]=useState<string>('all')
   const [duel,setDuel]=useState<Duel|null>(null)
   const [plays,setPlays]=useState<Play[]>([])
@@ -88,14 +93,23 @@ function App() {
     return ()=>window.clearTimeout(timer)
   },[duel,phase,night])
   const closeOverlay = () => setOverlay(null)
-  const start = (cards: Role[]) => {
+  const start = (cards: Role[], enemy = NPC_DECK) => {
     if (!validDeck(cards)) return
     setBattleDeck([...cards])
+    setBattleEnemy([...enemy])
+    setMatchError('')
     setPlays([])
     setTab('log')
-    setDuel(new Duel(cards))
+    setDuel(new Duel(cards, enemy))
     closeOverlay()
     window.scrollTo(0, 0)
+  }
+  const startPrepared = (cards: Role[]) => {
+    try {
+      start(cards, npcType === 'default' ? NPC_DECK : generateDeck(npcType))
+    } catch (failure) {
+      setMatchError(failure instanceof Error ? failure.message : '対戦を開始できませんでした。')
+    }
   }
   const persist = (update: (current: SavedDeck[]) => SavedDeck[], message: string) => {
     try {
@@ -113,6 +127,25 @@ function App() {
     setEditingId(entry.id)
     setName(entry.name)
     setDeck([...entry.cards])
+  }
+  const saveGenerated = (decks: NamedDeck[]) => {
+    if (!decks.length || decks.some(entry => !validDeck(entry.cards) ||
+      !entry.name.trim() || entry.name.trim().length > deckNameLimit)) return false
+    const additions = decks.map(entry => ({
+      id: newDeckId(),
+      name: entry.name.trim(),
+      cards: [...entry.cards],
+    }))
+    return persist(current => [...current, ...additions], additions.length + '件のデッキを保存しました。')
+  }
+  const editGenerated = (entry: NamedDeck) => {
+    setEditingId(null)
+    setName(entry.name.trim())
+    setDeck([...entry.cards])
+    setFilter('all')
+    setNotice('')
+    closeOverlay()
+    requestAnimationFrame(() => document.getElementById('deck-name')?.focus())
   }
   const saveDeck = () => {
     if (!validDeck(deck) || !name.trim()) return
@@ -161,10 +194,11 @@ function App() {
     <main className="wrap">
       {rules&&<section className="panel guide"><h2>遊び方</h2><p>20枚のデッキでNPCと対戦します。初期HPは20、初期手札は5枚。毎夜1枚引き、手札から1～2枚を選んで確定すると、双方のカードが同時に公開されます。</p><p>妨害、防御、攻撃・反撃、勝敗判定、回復、ドロー・回収の順に処理します。夜の終了時、手札が{RULES.handRefill}枚未満なら{RULES.handRefill}枚まで補充します。手札の上限は7枚。山札が空なら捨て札を混ぜて引きます。</p><p>先にHPが0になった側が敗北。同時に0なら引き分け。第15夜の効果をすべて処理しても双方が生き残っていれば、HPが多い側の勝利です。</p></section>}
       {!duel ? <>
-        <section className="hero"><div className="moon" aria-hidden="true"/><div className="hero-copy"><div className="eyebrow">✦　月夜の決闘</div><h1>人狼デュエル</h1><p>役職を選び、相手の手を読む。<br/>十五夜のうちに、決着をつけろ。</p><button className="primary" disabled={!validDeck(deck) && !saved.length} onClick={() => setOverlay({ type: 'start' })}>NPC戦を開始 <span aria-hidden="true">→</span></button></div><div className="hero-index" aria-hidden="true">Ⅰ <span>／</span> ⅩⅤ</div></section>
+        <section className="hero"><div className="moon" aria-hidden="true"/><div className="hero-copy"><div className="eyebrow">✦　月夜の決闘</div><h1>人狼デュエル</h1><p>役職を選び、相手の手を読む。<br/>十五夜のうちに、決着をつけろ。</p><button className="primary" disabled={!validDeck(deck) && !saved.length} onClick={() => { setMatchError(''); setOverlay({ type: 'start' }) }}>NPC戦を開始 <span aria-hidden="true">→</span></button></div><div className="hero-index" aria-hidden="true">Ⅰ <span>／</span> ⅩⅤ</div></section>
         <section className="builder">
           <div className="section-title"><div><div className="eyebrow">01 / DECK BUILDER</div><h2>デッキ構築</h2></div><div className={'count '+(validDeck(deck)?'ready':'')}><strong>{deck.length}</strong> / {RULES.deckSize} 枚</div></div>
           <section className="panel deck-library" aria-label="デッキ管理">
+            <button className="primary generator-launch" aria-haspopup="dialog" onClick={() => setOverlay({ type: 'generate' })}>おまかせ作成</button>
             <div className="deck-editor">
               <label htmlFor="deck-name">デッキ名</label>
               <input id="deck-name" value={name} maxLength={deckNameLimit} placeholder="例：月夜の狩人" onChange={event => setName(event.target.value)} />
@@ -223,17 +257,37 @@ function App() {
             <button className="primary action" disabled={(duel.players[0].hand.length>0&&!plays.length)||plays.some(p=>duel.players[0].hand.find(c=>c.id===p.id)?.role==='assassin'&&!p.guess)} onClick={()=>{if(duel.lock(plays)){setPlays([]);refresh()}}}>{duel.players[0].hand.length?'選択を確定':'パスを確定'} →</button></>}
           {phase==='choice'&&duel.prompt&&<div className="choice"><h2>{duel.prompt.title}</h2><div className="duel-cards">{duel.prompt.options.map(c=><CardTile key={c.id} role={c.role} onClick={()=>{duel.answer(c.id);refresh()}}/>)}</div></div>}
           {phase==='end'&&<button className="primary action" onClick={()=>{duel.nextNight();refresh()}}>次の夜へ →</button>}
-          {phase==='finished'&&<div className="result" role="status"><div className="eyebrow">✦　決着</div><h2>{duel.winner==='draw'?'引き分け':duel.winner===0?'あなたの勝利':'NPCの勝利'}</h2><p>{duel.reason}　あなた {duel.players[0].hp} HP / NPC {duel.players[1].hp} HP</p><button className="primary" onClick={() => start(battleDeck)}>同じデッキで再戦 →</button></div>}
+          {phase==='finished'&&<div className="result" role="status"><div className="eyebrow">✦　決着</div><h2>{duel.winner==='draw'?'引き分け':duel.winner===0?'あなたの勝利':'NPCの勝利'}</h2><p>{duel.reason}　あなた {duel.players[0].hp} HP / NPC {duel.players[1].hp} HP</p><button className="primary" onClick={() => start(battleDeck, battleEnemy)}>同じデッキで再戦 →</button></div>}
         </section><aside className="panel chronicle">
           <h2>対戦記録</h2><div className="filters tabs">{([['log','ログ'],['self','自分の捨て札'],['enemy','NPCの捨て札']] as const).map(([k,name])=><button key={k} className={k===tab?'active':''} aria-pressed={tab===k} onClick={()=>setTab(k)}>{name}</button>)}</div>
           {tab==='log'?<ol className="log" aria-label="対戦ログ">{duel.log.filter(l=>l.privateTo!==1).map((l,i)=><li key={i}><span>第{l.night}夜</span>{l.privateTo===0&&<em>自分のみ</em>}{l.text}</li>).reverse()}</ol>:<div className="discard">{duel.players[tab==='self'?0:1].discard.length?ROLES.map(r=>{const n=duel.players[tab==='self'?0:1].discard.filter(c=>c.role===r).length;return n>0&&<div key={r}><span>{card(r).name}</span><strong>× {n}</strong></div>}):<p className="hint">捨て札はありません。</p>}</div>}
         </aside></div>
       </>}
+      {overlay?.type === 'generate' && (
+        <DeckGenerator
+          usedNames={saved.map(entry => entry.name)}
+          onClose={closeOverlay}
+          onUse={entry => start(entry.cards)}
+          onEdit={editGenerated}
+          onSave={saveGenerated}
+        />
+      )}
       {overlay?.type === 'start' && (
         <Sheet title="対戦デッキを選択" onClose={closeOverlay}>
+          <label className="npc-deck-type">
+            NPCのデッキ
+            <select value={npcType} onChange={event => {
+              setNpcType(event.target.value as DeckType | 'default')
+              setMatchError('')
+            }}>
+              <option value="default">標準デッキ</option>
+              {DECK_TYPES.map(type => <option key={type} value={type}>おまかせ・{PROFILES[type].label}</option>)}
+            </select>
+          </label>
+          {matchError && <p className="notice" role="alert">{matchError}</p>}
           <div className="match-decks">
-            {validDeck(deck) && <button className="quiet" onClick={() => start(deck)}>編集中のデッキ{ name.trim() && '：' + name.trim() }</button>}
-            {saved.map(entry => <button className="quiet" key={entry.id} onClick={() => start(entry.cards)}>{entry.name}</button>)}
+            {validDeck(deck) && <button className="quiet" onClick={() => startPrepared(deck)}>編集中のデッキ{ name.trim() && '：' + name.trim() }</button>}
+            {saved.map(entry => <button className="quiet" key={entry.id} onClick={() => startPrepared(entry.cards)}>{entry.name}</button>)}
           </div>
         </Sheet>
       )}
