@@ -247,3 +247,102 @@
   border: 1px solid var(--line);
   border-radius: 5px;
 }
+
+.opponent-tools {
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.sheet-footer {
+  flex-shrink: 0;
+  display: flex;
+  justify-content: flex-end;
+  padding: 10px 16px max(10px, env(safe-area-inset-bottom));
+  border-top: 1px solid var(--line);
+}
+.investigation-sheet {
+  border-color: #785487;
+}
+.investigation-record + .investigation-record {
+  border-top: 1px solid var(--line);
+  padding-top: 14px;
+  margin-top: 16px;
+}
+.investigation-meta {
+  color: #e5baee;
+  margin-top: 4px;
+  font-size: 14px;
+}
+.investigation-cards {
+  display: grid;
+  gap: 8px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.insight-card details summary {
+  list-style: none;
+  cursor: pointer;
+  display: grid;
+  gap: 4px;
+}
+.insight-card details summary::-webkit-details-marker {
+  display: none;
+}
+.insight-card summary:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: -2px;
+}
+.insight-card .art {
+  height: clamp(80px, 24vw, 158px);
+}
+.insight-card .card-name {
+  display: block;
+  overflow-wrap: anywhere;
+}
+.insight-status, .insight-order, .insight-detail-label {
+  font-size: 11px;
+  color: #e5baee;
+}
+.insight-detail-label {
+  text-decoration: underline;
+  color: var(--gold);
+}
+.insight-status.old {
+  color: var(--muted);
+}
+.insight-status.used {
+  color: #a6c6a1;
+}
+.insight-cue {
+  color: #edc3ff;
+  padding: 10px;
+  border: 1px solid #785487;
+  background: #312038;
+  border-radius: 5px;
+}
+.insight-glow {
+  border-color: #e3a3ff;
+  box-shadow: inset 0 0 30px #ae53d87a, 0 0 14px #b769dc80;
+  animation: insight-glow .45s ease-out;
+}
+@keyframes insight-glow {
+  from { box-shadow: inset 0 0 6px #ae53d844; }
+  to { box-shadow: inset 0 0 30px #ae53d87a, 0 0 14px #b769dc80; }
+}
+@media (max-width: 580px) {
+  .sheet-footer .primary {
+    width: 100%;
+  }
+  .investigation-sheet .sheet-body {
+    padding: 10px 12px;
+  }
+  .insight-card {
+    padding: 6px;
+  }
+  .insight-card .card-name {
+    font-size: 16px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .insight-glow { animation: none; }
+}

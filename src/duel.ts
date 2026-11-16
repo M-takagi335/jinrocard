@@ -11,6 +11,13 @@ const fresh = (): Status => ({ noHeal:false, limited:false })
 type Player = { hp:number; hand:Instance[]; deck:Instance[]; discard:Instance[]; status:Status; next:Status }
 export type Prompt = { side:Side; title:string; options:Instance[] }
 type Log = { night:number; text:string; privateTo?:Side }
+export type Investigation = {
+  sourceId: number
+  night: number
+  kind: 'seer' | 'prophet'
+  cards: { role: Role; status: 'observed' | 'old' | 'used' }[]
+}
+type InvestigationSnapshot = Omit<Investigation, 'cards'> & { cards: Instance[]; revision: number }
 type Phase = 'select' | 'reveal' | 'resolve' | 'choice' | 'end' | 'finished'
 export type DeckEntry = Readonly<{ role: Role; count: number }>
 export type NpcView = { hand: readonly Instance[]; hp:number; enemyHp:number; max:number; noHeal:boolean; discard:readonly Instance[]; enemyDiscard:readonly Instance[]; enemyDeck:readonly DeckEntry[] }
@@ -44,6 +51,9 @@ export function chooseNpc(view:NpcView, rng:()=>number): Play[] {
 
 export class Duel {
   readonly rules: Config
+  private readonly investigations: [InvestigationSnapshot[], InvestigationSnapshot[]] = [[], []]
+  private readonly revisions = [0, 0]
+  private readonly lastPlayed = [new Map<number, number>(), new Map<number, number>()]
   private readonly initialDecks: readonly [readonly DeckEntry[], readonly DeckEntry[]]
   readonly players: [Player,Player]
   readonly log: Log[] = []
@@ -79,6 +89,19 @@ export class Duel {
   deckComposition(side: Side): readonly DeckEntry[] {
     return this.initialDecks[side]
   }
+  investigationsFor(side: Side): Investigation[] {
+    const opponent = other(side)
+    return this.investigations[side].map(({ sourceId, night, kind, cards, revision }) => ({
+      sourceId,
+      night,
+      kind,
+      cards: cards.map(({ id, role }) => ({
+        role,
+        status: (this.lastPlayed[opponent].get(id) ?? 0) > night ? 'used'
+          : this.revisions[opponent] !== revision ? 'old' : 'observed',
+      })),
+    }))
+  }
   private write(text:string, privateTo?:Side) { this.log.push({night:this.night,text,privateTo}) }
   max(side:Side) { return this.players[side].status.limited ? 1 : this.rules.maxPlays }
   private draw(side:Side,count:number,kind:'draw'|'refill'|'silent'='draw') {
@@ -92,6 +115,7 @@ export class Duel {
       const c=p.deck.shift()
       if(c) { p.hand.push(c); drawn++ }
     }
+    if (drawn) this.revisions[side]++
     if(kind==='draw') this.write(who[side]+'は'+drawn+'枚引いた。')
     if(kind==='refill') this.write(who[side]+'は夜終了時に手札を'+drawn+'枚補充した。')
   }
@@ -107,6 +131,7 @@ export class Duel {
     const id=yield* this.choose(side,title,p.hand)
     const c=p.hand.splice(p.hand.findIndex(x=>x.id===id),1)[0]
     p.discard.push(c)
+    this.revisions[side]++
     this.write(who[side]+'は'+card(c.role).name+'を捨てた。')
   }
   private *trim(side:Side):Generator<Prompt,void,number> {
@@ -148,8 +173,10 @@ export class Duel {
     const all=[plays,this.npcPlays]
     for(const i of sides) {
       const p=this.players[i]
+      if (all[i].length) this.revisions[i]++
       this.revealed[i]=all[i].map(play=>{
         const c=p.hand.splice(p.hand.findIndex(x=>x.id===play.id),1)[0]
+        this.lastPlayed[i].set(c.id, this.night)
         this.write(who[i]+'は'+card(c.role).name+'を使用した。')
         return {...c,guess:c.role==='assassin'?play.guess:undefined,disabled:false}
       })
@@ -253,7 +280,11 @@ export class Duel {
       const enemy=this.players[other(i)], spec=card(c.role)
       if(c.role==='seer'||c.role==='prophet') {
         const options=c.role==='seer'?shuffle(enemy.hand,this.rng):enemy.deck
-        const names=options.slice(0,spec.power).map(item=>card(item.role).name)
+        const cards = options.slice(0, spec.power).map(({ id, role }) => ({ id, role }))
+        this.investigations[i].push({
+          sourceId: c.id, night: this.night, kind: c.role, cards, revision: this.revisions[other(i)],
+        })
+        const names = cards.map(item => card(item.role).name)
         this.write(who[i]+'の'+spec.name+'が確認：'+(names.join(' → ')||'対象なし'),i)
       }
     }
@@ -272,6 +303,7 @@ export class Duel {
           const id=yield* this.choose(i,spec.name+'：回収するカードを選択',p.discard,true)
           const recovered=p.discard.splice(p.discard.findIndex(x=>x.id===id),1)[0]
           if(c.role==='medium')p.hand.push(recovered);else p.deck.unshift(recovered)
+          this.revisions[i]++
           this.write(who[i]+'は'+card(recovered.role).name+'を'+(c.role==='medium'?'手札':'山札の一番上')+'に戻した。')
           break
         }

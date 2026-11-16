@@ -291,3 +291,68 @@ test('refill is configurable and draws as many as are available after using card
   assert.deepEqual(game.players.map(player => player.hand.length), [1, 1])
   assert.equal(game.log.filter(entry => entry.text.includes('夜終了時に手札を1枚補充')).length, 2)
 })
+
+test('seer investigation stores exactly the sampled roles from the remaining hand, including zero and duplicates', () => {
+  for (const remaining of [0, 1, 2, 3]) {
+    const enemy: Role[] = ['hunter', ...(['wolf', 'wolf', 'witch'] as const).slice(0, remaining)]
+    const player: Role[] = ['seer', ...(['knight', 'witch', 'mason'] as const).slice(0, remaining)]
+    const game = new Duel(player, enemy, {
+      rules: { deckSize: enemy.length, opening: enemy.length, handRefill: 0 },
+      rng: () => .99999,
+      npc: ({ hand }) => [{ id: hand[0].id }],
+    })
+    const seer = game.players[0].hand[0]
+    assert.ok(game.lock([{ id: seer.id }]))
+    assert.deepEqual(game.investigationsFor(0), [])
+    game.resolve()
+    const expected = enemy.slice(1, 3)
+    assert.deepEqual(game.investigationsFor(0), [{
+      sourceId: seer.id,
+      night: 1,
+      kind: 'seer',
+      cards: expected.map(role => ({ role, status: 'observed' })),
+    }])
+    assert.ok(game.log.some(entry => entry.privateTo === 0 &&
+      entry.text.endsWith(expected.length ? expected.map(role => CARDS[role].name).join(' → ') : '対象なし')))
+    const logLength = game.log.length
+    game.resolve()
+    assert.equal(game.investigationsFor(0).length, 1)
+    assert.equal(game.log.length, logLength)
+  }
+})
+
+test('simultaneous investigations remain private and prophet preserves the engine deck order', () => {
+  const { game, play } = rig(['seer', 'prophet'], ['seer'])
+  const hand = game.players[1].hand.slice(1, 3).map(c => c.role)
+  const deck = game.players[1].deck.slice(0, 3).map(c => c.role)
+  const npcSample = game.players[0].hand.slice(2, 4).map(c => c.role)
+  play()
+  const playerRecords = game.investigationsFor(0)
+  assert.deepEqual(playerRecords.map(record => [record.kind, record.cards.map(c => c.role)]), [
+    ['seer', hand], ['prophet', deck],
+  ])
+  assert.deepEqual(game.investigationsFor(1)[0].cards.map(c => c.role), npcSample)
+  assert.deepEqual(game.players[1].deck.slice(0, 3).map(c => c.role), deck)
+  playerRecords[0].cards.pop()
+  assert.equal(game.investigationsFor(0)[0].cards.length, 2)
+})
+
+test('public draws age records and only the exact revealed copy is marked used', () => {
+  const { game, play } = rig(['seer'], ['hunter'])
+  // With the ordered fixture, the two wolves are the first remaining cards.
+  play()
+  assert.deepEqual(game.investigationsFor(0)[0].cards, [
+    { role: 'wolf', status: 'observed' }, { role: 'wolf', status: 'observed' },
+  ])
+  game.nextNight()
+  assert.deepEqual(game.investigationsFor(0)[0].cards.map(c => c.status), ['old', 'old'])
+  assert.ok(game.lock([{ id: game.players[0].hand[0].id }]))
+  assert.deepEqual(game.investigationsFor(0)[0].cards.map(c => c.status), ['used', 'old'])
+})
+
+test('an NPC draw later in the same night ages the player investigation', () => {
+  const { game, play } = rig(['seer'], ['jester'])
+  play()
+  assert.ok(game.investigationsFor(0)[0].cards.every(c => c.status === 'old'))
+  assert.equal(game.investigationsFor(0)[0].night, 1)
+})

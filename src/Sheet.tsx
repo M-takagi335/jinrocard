@@ -2,9 +2,11 @@ import { useEffect, useId, useRef, type ReactNode } from 'react'
 import { card, type Role } from './cards.ts'
 import type { DeckEntry } from './duel.ts'
 
-export function Sheet({ title, onClose, children }: {
+export function Sheet({ title, onClose, children, footer, className }: {
   title: string
-  onClose: () => void
+  onClose?: () => void
+  footer?: ReactNode
+  className?: string
   children: ReactNode
 }) {
   const dialog = useRef<HTMLDialogElement>(null)
@@ -23,17 +25,18 @@ export function Sheet({ title, onClose, children }: {
   return (
     <dialog
       ref={dialog}
-      className="sheet"
+      className={className ? 'sheet ' + className : 'sheet'}
       aria-labelledby={titleId}
-      onCancel={event => { event.preventDefault(); onClose() }}
-      onClick={event => { if (event.target === event.currentTarget) onClose() }}
+      onCancel={event => { event.preventDefault(); onClose?.() }}
+      onClick={event => { if (event.target === event.currentTarget) onClose?.() }}
     >
       <div className="sheet-content">
         <header className="sheet-header">
           <h2 id={titleId}>{title}</h2>
-          <button className="quiet" onClick={onClose}>閉じる</button>
+          {onClose && <button className="quiet" onClick={onClose}>閉じる</button>}
         </header>
         <div className="sheet-body">{children}</div>
+        {footer && <footer className="sheet-footer">{footer}</footer>}
       </div>
     </dialog>
   )
