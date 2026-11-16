@@ -174,13 +174,8 @@
   color: var(--muted);
 }
 
-.npc-deck-type {
-  display: grid;
-  gap: 6px;
-  margin-bottom: 14px;
-}
-.npc-deck-type select {
-  width: 100%;
+.match-npc select {
+  min-width: 0;
   min-height: 44px;
   padding: 8px;
   background: #27202e;
@@ -597,8 +592,20 @@
   scrollbar-gutter: stable;
   padding: 2px;
 }
-.match-sheet .npc-deck-type {
-  margin-bottom: 0;
+.match-section-title, .match-npc label {
+  display: block;
+  margin-bottom: 5px;
+  font-size: 14px;
+  font-weight: 700;
+}
+.match-npc-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px;
+}
+.match-npc-actions button {
+  min-height: 44px;
+  padding-inline: 8px;
 }
 .match-types {
   display: grid;

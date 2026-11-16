@@ -1,6 +1,6 @@
 import { useEffect, useReducer, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
-import { card, CATEGORY, NPC_DECK, ROLES, RULES, STARTER, validDeck, type Role } from './cards.ts'
+import { card, CATEGORY, ROLES, RULES, STARTER, validDeck, type Role } from './cards.ts'
 import { Duel, type Instance, type Play, type Side } from './duel.ts'
 import { deckCardsError, deckNameLimit, exportDeck, importDeck, inspectSavedDecks, loadSavedDecks, matchDecks, storeSavedDecks, type MatchDeck, type NamedDeck, type SavedDeck } from './decks.ts'
 import { CardTile } from './CardTile.tsx'
@@ -58,10 +58,12 @@ function App() {
   const [replacement, setReplacement] = useState<(() => void) | null>(null)
   const [notice, setNotice] = useState('')
   const [overlay, setOverlay] = useState<Overlay | null>(null)
-  const [npcType, setNpcType] = useState<DeckType | 'default'>('default')
+  const [npcDeck, setNpcDeck] = useState<{ type: DeckType | 'default'; cards: Role[] }>({
+    type: 'default', cards: [...STARTER],
+  })
   const [battleName, setBattleName] = useState('')
-  const [myMatchId, setMyMatchId] = useState('standard')
-  const [quickMatchId, setQuickMatchId] = useState<string>()
+  const [myMatchId, setMyMatchId] = useState<string>()
+  const [quickMatchId, setQuickMatchId] = useState('standard')
   const [page, setPage] = useState<'home' | 'builder'>('home')
   const [quickDecks, setQuickDecks] = useState<Partial<Record<DeckType, MatchDeck>>>({})
   const [matchError, setMatchError] = useState('')
@@ -118,7 +120,9 @@ function App() {
   const closeOverlay = () => setOverlay(null)
   const options = [...matchDecks(deck, name, saved), ...Object.values(quickDecks)]
   const openMatchSetup = () => {
-    setMyMatchId(id => options.some(entry => entry.id === id && !deckCardsError(entry.cards)) ? id : 'standard')
+    const eligible = options.filter(entry => (entry.source === '編集中' || entry.source === '保存済み')
+      && !deckCardsError(entry.cards))
+    setMyMatchId(id => eligible.some(entry => entry.id === id) ? id : eligible[0]?.id)
     setMatchError('')
     setOverlay({ type: 'start' })
   }
@@ -135,11 +139,19 @@ function App() {
       setMatchError(failure instanceof Error ? failure.message : 'デッキを作成できませんでした。')
     }
   }
+  const selectNpcDeck = (type: DeckType | 'default') => {
+    setMatchError('')
+    if (type === npcDeck.type) return
+    try {
+      setNpcDeck({ type, cards: type === 'default' ? [...STARTER] : generateDeck(type) })
+    } catch (failure) {
+      setMatchError(failure instanceof Error ? failure.message : 'NPCのデッキを作成できませんでした。')
+    }
+  }
   const start = (cards: Role[], enemy: Role[], deckName: string) => {
     const error = deckCardsError(cards)
     if (error) throw new Error(error)
-    const playerCards = [...cards]
-    const nextDuel = new Duel(playerCards, enemy)
+    const nextDuel = new Duel([...cards], [...enemy])
     setReadCount(0)
     setShowInvestigation(false)
     setBattleName(deckName)
@@ -152,7 +164,7 @@ function App() {
   }
   const startPrepared = (selected: MatchDeck) => {
     try {
-      start(selected.cards, npcType === 'default' ? NPC_DECK : generateDeck(npcType), selected.name)
+      start(selected.cards, npcDeck.cards, selected.name)
     } catch (failure) {
       setMatchError(failure instanceof Error ? failure.message : '対戦を開始できませんでした。')
     }
@@ -486,10 +498,10 @@ function App() {
         <MatchSetup
           options={options} quickId={quickMatchId} myId={myMatchId}
           onSelect={id => { setMyMatchId(id); setMatchError('') }}
-          npcType={npcType} onNpcType={type => { setNpcType(type); setMatchError('') }}
+          npcDeck={npcDeck} onNpcType={selectNpcDeck}
           onStart={startPrepared} onInspect={inspect} onClose={closeOverlay}
           error={matchError} issues={library.issues}
-          onGenerate={selectQuickDeck} onClearError={() => setMatchError('')}
+          onStandard={() => { setQuickMatchId('standard'); setMatchError('') }} onGenerate={selectQuickDeck} onClearError={() => setMatchError('')}
         />
       )}
       {overlay?.type === 'deck' && duel && !pending && (
