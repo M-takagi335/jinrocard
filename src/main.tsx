@@ -32,7 +32,7 @@ function readLibrary(): { decks: SavedDeck[]; issues: string[] } {
   }
 }
 
-type Overlay = { type: 'start' | 'generate' | 'investigations' | 'catalog' | 'manage' | 'save' } | { type: 'deck' | 'discard'; side: Side } | { type: 'guess'; id: number } | { type: 'delete'; deck: SavedDeck }
+type Overlay = { type: 'start' | 'generate' | 'investigations' | 'manage' | 'save' } | { type: 'deck' | 'discard'; side: Side } | { type: 'guess'; id: number } | { type: 'delete'; deck: SavedDeck }
 
 const rolesByName = new Map(ROLES.map(role => [card(role).name, role]))
 const roleMention = new RegExp('(' + [...rolesByName.keys()].sort((a, b) => b.length - a.length).join('|') + ')', 'g')
@@ -56,11 +56,11 @@ function App() {
   const [overlay, setOverlay] = useState<Overlay | null>(null)
   const [npcType, setNpcType] = useState<DeckType | 'default'>('default')
   const [battleName, setBattleName] = useState('')
-  const [matchSelection, setMatchSelection] = useState('standard')
+  const [myMatchId, setMyMatchId] = useState('standard')
+  const [quickMatchId, setQuickMatchId] = useState<string>()
   const [page, setPage] = useState<'home' | 'builder'>('home')
   const [quickDecks, setQuickDecks] = useState<Partial<Record<DeckType, MatchDeck>>>({})
   const [matchError, setMatchError] = useState('')
-  const [filter,setFilter]=useState<string>('all')
   const [duel,setDuel]=useState<Duel|null>(null)
   const insightCue = useRef<HTMLParagraphElement>(null)
   const [readCount, setReadCount] = useState(0)
@@ -114,7 +114,7 @@ function App() {
   const closeOverlay = () => setOverlay(null)
   const options = [...matchDecks(deck, name, saved), ...Object.values(quickDecks)]
   const openMatchSetup = () => {
-    setMatchSelection(id => options.some(entry => entry.id === id && !deckCardsError(entry.cards)) ? id : 'standard')
+    setMyMatchId(id => options.some(entry => entry.id === id && !deckCardsError(entry.cards)) ? id : 'standard')
     setMatchError('')
     setOverlay({ type: 'start' })
   }
@@ -125,7 +125,7 @@ function App() {
         const generated: MatchDeck = { id, source: 'おまかせ', name: label, cards: generateDeck(type) }
         setQuickDecks(previous => ({ ...previous, [type]: generated }))
       }
-      setMatchSelection(id)
+      setQuickMatchId(id)
       setMatchError('')
     } catch (failure) {
       setMatchError(failure instanceof Error ? failure.message : 'デッキを作成できませんでした。')
@@ -184,7 +184,6 @@ function App() {
     setEditingId(null)
     setName(entry.name.trim())
     setDeck([...entry.cards])
-    setFilter('all')
     setNotice('')
     closeOverlay()
     requestAnimationFrame(() => document.getElementById('deck-builder')?.focus())
@@ -303,17 +302,39 @@ function App() {
               </div>
               <div className="home-links">
                 <button className="quiet" aria-expanded={rules} onClick={() => setRules(value => !value)}>遊び方</button>
-                <button className="quiet" onClick={() => setOverlay({ type: 'catalog' })}>カード一覧</button>
               </div>
             </div>
             <div className="hero-index" aria-hidden="true">Ⅰ <span>／</span> ⅩⅤ</div>
           </section>
-          {rules && <section className="panel guide"><h2>遊び方</h2><p>20枚のデッキでNPCと対戦します。初期HPは20、初期手札は5枚。毎夜の開始時に1枚引き、手札から1～2枚を選んで確定すると、双方のカードが同時に公開されます。</p><p>妨害、防御、攻撃・反撃、勝敗判定、回復、ドロー・回収の順に処理します。夜終了時に手札が{RULES.handRefill}枚未満なら、{RULES.handRefill}枚になるまで補充します。手札の上限は7枚。山札が空なら捨て札を混ぜて引きます。</p><p>先にHPが0になった側が敗北。同時に0なら引き分け。第15夜の効果をすべて処理しても双方が生き残っていれば、HPが多い側の勝利です。</p>
-        <p>{card('hunter').name}：{card('hunter').text}<br/>{card('knight').name}：{card('knight').text}</p>
-        <div className="guide-cards">{(['wolf', 'hunter', 'seer'] as const).map(role => (
-          <CardTile key={role} role={role} onInspect={() => inspect(role)} />
-        ))}</div>
-      </section>}
+          {rules && (
+            <section className="panel guide">
+              <h2>遊び方</h2>
+              <h3>基本ルール</h3>
+              <ul>
+                <li>{RULES.deckSize}枚のデッキで対戦します。初期HPは{RULES.hp}、初期手札は{RULES.opening}枚です。</li>
+                <li>毎夜の開始時に{RULES.nightlyDraw}枚引き、お互いが手札から1〜{RULES.maxPlays}枚を選んで確定すると同時公開します。</li>
+                <li>妨害、防御、攻撃・反撃、HP0の勝敗判定、回復、ドロー・回収の順に処理します。</li>
+                <li>夜終了時、手札が{RULES.handRefill}枚未満なら{RULES.handRefill}枚まで補充します。手札の上限は{RULES.handLimit}枚です。</li>
+                <li>引くときに山札が空なら、捨て札をシャッフルして山札に戻します。</li>
+                <li>HPが0になった側が敗北します。第{RULES.finalNight}夜の処理後も双方が生き残っていれば、HPが多い側の勝ちです。同時にHP0になった場合や、最終夜のHPが同じ場合は引き分けです。</li>
+              </ul>
+              <h3>カードの種類</h3>
+              <dl className="guide-types">
+                <dt>{CATEGORY.attack}</dt><dd>相手にダメージを与えます。</dd>
+                <dt>{CATEGORY.guard}</dt><dd>ダメージを防いだり、HPを回復したりします。</dd>
+                <dt>{CATEGORY.intel}</dt><dd>相手の手札や山札を調べたり、相手の行動に応じてカードを引いたりします。</dd>
+                <dt>{CATEGORY.supply}</dt><dd>カードを引いたり、捨て札から回収したりします。</dd>
+                <dt>{CATEGORY.hex}</dt><dd>相手のカード効果を無効にしたり、行動を制限したりします。</dd>
+              </dl>
+              <h3>カードの例</h3>
+              <p>カードをタップすると詳細が見れます。20種類すべての効果はデッキ構築画面で確認できます。</p>
+              <div className="guide-cards">
+                <div><CardTile role="wolf" onInspect={() => inspect('wolf')} /><p>相手にダメージを与える。</p></div>
+                <div><CardTile role="hunter" onInspect={() => inspect('hunter')} /><p>相手の襲撃を防ぐ。</p></div>
+                <div><CardTile role="seer" onInspect={() => inspect('seer')} /><p>相手の手札を調べる。</p></div>
+              </div>
+            </section>
+          )}
         </> : (
         <section className="builder" id="deck-builder" tabIndex={-1}>
           <div className="section-title builder-heading"><div><div className="eyebrow">01 / DECK BUILDER</div><h2>デッキ構築</h2></div></div>
@@ -331,9 +352,9 @@ function App() {
           <section className="panel deck-library builder-desktop" aria-label="デッキ管理">
             {deckManagement}
           </section>
-          <div className="controls"><div className="filters" aria-label="カード分類">{[['all','すべて'],...Object.entries(CATEGORY)].map(([key,label])=><button key={key} className={filter===key?'active':''} aria-pressed={filter===key} onClick={()=>setFilter(key)}>{label}</button>)}</div><div className="builder-desktop">{resetTools}</div></div>
+          <div className="controls builder-desktop">{resetTools}</div>
           <p className="hint">カードの下の ＋ / − で投入枚数を変更。20枚揃えると保存できます。</p>
-          <div className="catalog">{ROLES.filter(r=>filter==='all'||card(r).category===filter).map(r=><article className="deck-item" key={r}><CardTile role={r} onInspect={() => inspect(r)} /><div className="quantity"><button aria-label={card(r).name+'を減らす'} disabled={!tally(r)} onClick={()=>setDeck(d=>{const copy=[...d];copy.splice(copy.indexOf(r),1);return copy})}>−</button><span>{tally(r)} <small>/ {card(r).limit}</small></span><button aria-label={card(r).name+'を増やす'} disabled={deck.length>=RULES.deckSize||tally(r)>=card(r).limit} onClick={()=>setDeck(d=>[...d,r])}>＋</button></div></article>)}</div>
+          <div className="catalog">{ROLES.map(r=><article className="deck-item" key={r}><CardTile role={r} onInspect={() => inspect(r)} /><div className="quantity"><button aria-label={card(r).name+'を減らす'} disabled={!tally(r)} onClick={()=>setDeck(d=>{const copy=[...d];copy.splice(copy.indexOf(r),1);return copy})}>−</button><span>{tally(r)} <small>/ {card(r).limit}</small></span><button aria-label={card(r).name+'を増やす'} disabled={deck.length>=RULES.deckSize||tally(r)>=card(r).limit} onClick={()=>setDeck(d=>[...d,r])}>＋</button></div><p className="card-text builder-effect">{card(r).text}</p></article>)}</div>
         </section>)}
       </>:<>
         <div className="section-title battle-title"><div><div className="eyebrow">02 / THE DUEL</div><h1>第{duel.night}夜 <small>/ {duel.rules.finalNight}</small></h1><p className="battle-deck-name">使用デッキ：{battleName}</p></div><button className="quiet" disabled={!!pending} onClick={home}>{phase==='finished'?'ホームへ戻る':'対戦を終了して戻る'}</button></div>
@@ -452,12 +473,12 @@ function App() {
       )}
       {overlay?.type === 'start' && (
         <MatchSetup
-          options={options} selectedId={matchSelection}
-          onSelect={id => { setMatchSelection(id); setMatchError('') }}
+          options={options} quickId={quickMatchId} myId={myMatchId}
+          onSelect={id => { setMyMatchId(id); setMatchError('') }}
           npcType={npcType} onNpcType={type => { setNpcType(type); setMatchError('') }}
           onStart={startPrepared} onInspect={inspect} onClose={closeOverlay}
           error={matchError} issues={library.issues}
-          onGenerate={selectQuickDeck}
+          onGenerate={selectQuickDeck} onClearError={() => setMatchError('')}
         />
       )}
       {overlay?.type === 'deck' && duel && !pending && (
@@ -486,13 +507,6 @@ function App() {
         <Sheet title="保存したデッキを削除" onClose={closeOverlay}>
           <p>「{overlay.deck.name}」を削除しますか？</p>
           <button className="quiet action" onClick={() => deleteDeck(overlay.deck)}>削除する</button>
-        </Sheet>
-      )}
-      {overlay?.type === 'catalog' && (
-        <Sheet title="カード一覧" onClose={closeOverlay}>
-          <div className="art-catalog">
-            {ROLES.map(role => <CardTile key={role} role={role} onInspect={() => inspect(role)} />)}
-          </div>
         </Sheet>
       )}
       {overlay?.type === 'discard' && (

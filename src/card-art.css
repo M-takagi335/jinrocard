@@ -98,19 +98,12 @@
 .card-quick[aria-pressed=true] {
   border-color: var(--gold);
 }
-.guide-cards,
-.art-catalog {
+.guide-cards {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
-}
-.guide-cards {
   max-width: 350px;
   margin-top: 12px;
-}
-.catalog-launch {
-  min-height: 46px;
-  margin-top: 8px;
 }
 .duel-cards.hand-cards {
   display: flex;

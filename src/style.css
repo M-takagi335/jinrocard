@@ -428,13 +428,8 @@
   font-size: 13px;
 }
 
-.match-sheet {
-  width: min(830px, calc(100% - 30px));
-}
-.match-layout {
-  display: grid;
-  grid-template-columns: minmax(190px, .8fr) minmax(0, 1.2fr);
-  gap: 16px;
+.match-sheet, .match-contents {
+  width: min(520px, calc(100% - 30px));
 }
 .match-options, .match-card-list {
   list-style: none;
@@ -456,7 +451,7 @@
   border-color: var(--gold);
   background: #402631;
 }
-.match-option small, .match-preview small {
+.match-option small {
   color: var(--muted);
 }
 .match-card-list li {
@@ -467,7 +462,7 @@
   padding: 7px 0;
   border-bottom: 1px solid var(--line);
 }
-.match-preview h3, .match-status {
+.match-status {
   overflow-wrap: anywhere;
 }
 .match-card-list p {
@@ -500,9 +495,25 @@
 .match-footer .primary {
   margin-left: auto;
 }
+.match-footer button {
+  min-height: 44px;
+}
+.match-selection {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  width: 100%;
+}
+.match-selection .match-status {
+  flex: 1 1 120px;
+}
+.match-contents .match-card-list li {
+  grid-template-columns: clamp(78px, 20vw, 106px) minmax(0, 1fr);
+}
 @media (max-width: 580px) {
-  .match-sheet { width: 100%; }
-  .match-layout { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  .match-sheet, .match-contents { width: 100%; }
+  .match-footer .primary { width: 100%; }
   .match-card-list li { grid-template-columns: 48px minmax(0, 1fr); }
 }
 
@@ -589,18 +600,59 @@
 .home-links {
   margin-top: 12px;
 }
-.match-quick {
-  margin-block: 8px;
+.guide h3 {
+  margin-top: 16px;
+  color: var(--gold);
 }
-.match-quick button {
-  width: 100%;
+.guide ul {
+  padding-inline-start: 1.3em;
+}
+.guide-types {
+  display: grid;
+  grid-template-columns: minmax(0, max-content) minmax(0, 1fr);
+  gap: 4px 12px;
+}
+.guide-types dt {
+  font-weight: 700;
+}
+.guide-types dd {
+  margin: 0;
+  color: var(--muted);
+}
+.builder-effect {
+  overflow-wrap: anywhere;
+}
+.match-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.match-tabs button {
   min-height: 44px;
+}
+.match-tabs [aria-selected=true] {
+  color: var(--gold);
+  border-color: var(--gold);
+  background: #402631;
+}
+.match-panes {
+  block-size: clamp(170px, 35dvh, 265px);
+  margin-bottom: 8px;
+}
+.match-panes > [role=tabpanel] {
+  block-size: 100%;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  padding: 2px;
+}
+.match-sheet .npc-deck-type {
+  margin-bottom: 0;
 }
 .match-types {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 6px;
-  margin-top: 6px;
 }
 @media (max-width: 600px) {
   .home-actions {
