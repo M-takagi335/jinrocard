@@ -1,4 +1,4 @@
-import { useEffect, useReducer, useRef, useState } from 'react'
+import { useEffect, useReducer, useRef, useState, type ComponentType } from 'react'
 import { createRoot } from 'react-dom/client'
 import { card, CATEGORY, ROLES, RULES, STARTER, validDeck, type Role } from './cards.ts'
 import { Duel, type Instance, type Play, type Side } from './duel.ts'
@@ -52,6 +52,20 @@ function sameComposition(first: readonly Role[], second: readonly Role[]) {
 }
 
 function App() {
+  const [online, setOnline] = useState(() => {
+    if (new URLSearchParams(location.search).has('room')) return true
+    try { return Boolean(localStorage.getItem('jinro-online-room')) } catch { return false }
+  })
+  const [Online, setOnlineComponent] = useState<ComponentType<{ options: MatchDeck[]; onClose: () => void }>>()
+  const [onlineLoadError, setOnlineLoadError] = useState(false)
+  useEffect(() => {
+    if (!online || Online) return
+    let mounted = true
+    setOnlineLoadError(false)
+    void import('./OnlineMatch.tsx').then(module => { if (mounted) setOnlineComponent(() => module.default) },
+      () => { if (mounted) setOnlineLoadError(true) })
+    return () => { mounted = false }
+  }, [online, Online])
   const [deck,setDeck]=useState(loadDeck)
   const [library, setLibrary] = useState(readLibrary)
   const saved = library.decks
@@ -276,7 +290,10 @@ function App() {
   return <>
     <header className="top"><div className="wrap top-inner"><span className="brand"><span className="sigil">◈</span> 人狼デュエル</span>{page === 'builder' && <button className="quiet" onClick={home}>ホームへ戻る</button>}</div></header>
     <main className="wrap">
-      {!duel ? <>
+      {online ? Online ? <Online options={matchDecks(deck, name, saved)} onClose={() => setOnline(false)} />
+        : <Sheet title="オンライン対戦" onClose={() => setOnline(false)}><p role="status">{onlineLoadError
+          ? '現在オンライン対戦を利用できません。NPC対戦は引き続き遊べます。' : 'オンライン対戦を読み込んでいます…'}</p></Sheet>
+        : !duel ? <>
         {page === 'home' ? <>
           <section className="hero">
             <div className="moon" aria-hidden="true"/>
@@ -286,6 +303,7 @@ function App() {
               <p>役職を選び、相手の手を読む。<br/>十五夜のうちに、決着をつけろ。</p>
               <div className="home-actions">
                 <button className="primary" onClick={openMatchSetup}>NPCと対戦</button>
+                <button className="quiet" onClick={() => { setOnline(true); window.scrollTo(0, 0) }}>オンライン対戦</button>
                 <button className="quiet" onClick={() => { setPage('builder'); window.scrollTo(0, 0) }}>デッキを作る</button>
               </div>
               <div className="home-links">

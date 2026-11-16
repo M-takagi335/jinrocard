@@ -1,0 +1,7 @@
+project_id = "jinrocard"
+
+[auth]
+enable_anonymous_sign_ins = true
+
+[functions.online-duel]
+verify_jwt = false

@@ -616,7 +616,7 @@ html:has(.builder-sheet[open]) {
 .match-tabs button {
   min-height: 44px;
 }
-.match-tabs [aria-selected=true] {
+.match-tabs :is([aria-selected=true], [aria-pressed=true]) {
   color: var(--gold);
   border-color: var(--gold);
   background: #402631;
@@ -724,4 +724,39 @@ html:has(.match-contents[open]) {
 }
 :where([role="tabpanel"], .sheet-body):focus-visible {
   outline-offset: -2px;
+}
+
+.online-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-block: 8px;
+}
+.online-picker { margin-block: 12px; }
+.online-picker h3 { margin-bottom: 6px; }
+.online-form {
+  display: grid;
+  gap: 6px;
+  margin-block: 12px;
+}
+.online-form input {
+  min-width: 0;
+  width: 100%;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--panel);
+  color: var(--ink);
+}
+.online-battle .battle-title button { flex-shrink: 0; }
+.online-battle .battle-tools { flex-wrap: wrap; }
+.online-log summary { cursor: pointer; }
+html:has(.online-sheet[open], .online-battle ~ .sheet[open]) { overflow: hidden; }
+.online-sheet { overflow: hidden; }
+.online-sheet .sheet-body { min-height: 0; }
+.online-sheet:has(~ .sheet[open]) .sheet-body { overflow: hidden; }
+@media (max-width: 580px) {
+  .online-log .log { max-height: none; }
+  .online-actions button, .online-form input, .online-form button { min-height: 44px; }
 }

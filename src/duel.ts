@@ -35,7 +35,7 @@ function composition(roles: readonly Role[]): readonly DeckEntry[] {
 export type NpcView = { hand: readonly Instance[]; hp:number; enemyHp:number; max:number; noHeal:boolean; discard:readonly Instance[]; enemyDiscard:readonly Instance[]; enemyDeck:readonly DeckEntry[]; enemyRemaining:readonly DeckEntry[] }
 type Config = { hp:number; deckSize:number; opening:number; nightlyDraw:number; handRefill:number; handLimit:number; maxPlays:number; finalNight:number; finalTieBreak:'hp'|'draw' }
 type IntelDraw = Readonly<Partial<Record<'seer' | 'prophet', number>>>
-type Options = { rng?:()=>number; rules?:Partial<Config>; npc?: (view:NpcView)=>Play[]; intelDraw?: IntelDraw; npcDifficulty?: NpcDifficulty }
+type Options = { rng?:()=>number; rules?:Partial<Config>; npc?: (view:NpcView)=>Play[]; intelDraw?: IntelDraw; npcDifficulty?: NpcDifficulty; twoHumans?: boolean }
 export function shuffle<T>(input:readonly T[], rng:()=>number): T[] {
   const a = [...input]
   for(let i=a.length-1;i>0;i--) { const j=Math.floor(rng()*(i+1)); [a[i],a[j]]=[a[j],a[i]] }
@@ -65,6 +65,7 @@ export function chooseNpc(view:NpcView, rng:()=>number): Play[] {
 export class Duel {
   readonly rules: Config
   readonly npcDifficulty: NpcDifficulty
+  private readonly twoHumans: boolean
   private readonly investigations: [InvestigationSnapshot[], InvestigationSnapshot[]] = [[], []]
   private readonly revisions = [0, 0]
   private hpChanges: [HpChange, HpChange] = [{ lost: 0, gained: 0 }, { lost: 0, gained: 0 }]
@@ -92,6 +93,7 @@ export class Duel {
     this.rng=options.rng??Math.random
     this.intelDraw = { ...options.intelDraw }
     this.npcDifficulty = options.npcDifficulty ?? 'standard'
+    this.twoHumans = options.twoHumans ?? false
     this.npc = options.npc ?? (this.npcDifficulty === 'strong'
       ? view => chooseStrongNpc(this.withPublicContext(1, view), this.rng)
       : view => chooseNpc(view, this.rng))
@@ -200,7 +202,7 @@ export class Duel {
     if(kind==='refill') this.write(who[side]+'は夜終了時に手札を'+drawn+'枚補充した。')
   }
   private *choose(side:Side,title:string,options:Instance[],recover=false):Generator<Prompt,number,number> {
-    if(side===0) return yield {side,title,options:[...options]}
+    if(side===0 || this.twoHumans) return yield {side,title,options:[...options]}
     const p=this.players[side]
     const rank=(c:Instance)=>value(c.role,p.hp,p.status.noHeal,p.discard.length)
     return [...options].sort((a,b)=>(rank(b)-rank(a))*(recover?1:-1))[0].id
@@ -236,11 +238,13 @@ export class Duel {
     this.write('第'+this.night+'夜が始まった。')
     for(const i of sides) this.draw(i,this.rules.nightlyDraw)
     for(const i of sides) yield* this.trim(i)
-    this.npcPlays=this.npc(this.npcView(1))
-    if(!this.accepts(1,this.npcPlays)) throw new Error('NPCが無効なカードを選択しました。')
+    if (!this.twoHumans) {
+      this.npcPlays=this.npc(this.npcView(1))
+      if(!this.canLock(1,this.npcPlays)) throw new Error('NPCが無効なカードを選択しました。')
+    }
     this.phase='select'
   }
-  private accepts(side:Side, plays:Play[]) {
+  canLock(side:Side, plays:Play[]) {
     const hand=this.players[side].hand
     const candidates = this.remainingComposition(other(side))
     return plays.length>=Number(hand.length>0) && plays.length<=this.max(side) &&
@@ -249,8 +253,13 @@ export class Duel {
         (candidates.length === 0 ? p.guess === undefined : candidates.some(entry => entry.role === p.guess)))))
   }
   lock(plays:Play[]) {
-    if(this.phase!=='select'||!this.accepts(0,plays)) return false
-    const all=[plays,this.npcPlays]
+    return !this.twoHumans && this.revealPlays([plays, this.npcPlays])
+  }
+  lockBoth(plays: [Play[], Play[]]) {
+    return this.twoHumans && this.revealPlays(plays)
+  }
+  private revealPlays(all: [Play[], Play[]]) {
+    if(this.phase!=='select'||!sides.every(side => this.canLock(side, all[side]))) return false
     for(const i of sides) {
       const p=this.players[i]
       if (all[i].length) this.revisions[i]++
