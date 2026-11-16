@@ -53,9 +53,8 @@ export function chooseNpc(view:NpcView, rng:()=>number): Play[] {
   const ranked = view.hand.map(c => ({c, score:value(c.role,view.hp,view.noHeal,view.discard.length)+rng()*3}))
     .sort((a,b)=>b.score-a.score)
   const amount = Math.min(view.max, ranked.length, ranked[1]?.score >= 3 && rng() < .74 ? 2 : 1)
-  const candidates = view.enemyRemaining.length ? view.enemyRemaining : view.enemyDeck
-  const guesses = candidates.flatMap(({ role, count }) => Array<Role>(count).fill(role))
-  return ranked.slice(0,amount).map(({c})=>c.role==='assassin'
+  const guesses = view.enemyRemaining.flatMap(({ role, count }) => Array<Role>(count).fill(role))
+  return ranked.slice(0,amount).map(({c})=>c.role==='assassin' && guesses.length
     ? {id:c.id,guess:guesses[Math.floor(rng()*guesses.length)]} : {id:c.id})
 }
 
@@ -180,10 +179,11 @@ export class Duel {
   }
   private accepts(side:Side, plays:Play[]) {
     const hand=this.players[side].hand
+    const candidates = this.remainingComposition(other(side))
     return plays.length>=Number(hand.length>0) && plays.length<=this.max(side) &&
       new Set(plays.map(p=>p.id)).size===plays.length &&
       plays.every(p=>hand.some(c=>c.id===p.id && (c.role!=='assassin' ||
-        (p.guess!==undefined && this.deckComposition(other(side)).some(entry=>entry.role===p.guess)))))
+        (candidates.length === 0 ? p.guess === undefined : candidates.some(entry => entry.role === p.guess)))))
   }
   lock(plays:Play[]) {
     if(this.phase!=='select'||!this.accepts(0,plays)) return false
@@ -256,9 +256,9 @@ export class Duel {
         const spec=card(c.role)
         if(c.role==='wolf'||c.role==='dire') { raid+=spec.power!; recoil[i]+=spec.recoil??0 }
         if(c.role==='fox') raid+=this.players[i].hp<=spec.lowHp! ? spec.boosted! : spec.power!
-        if(c.role==='assassin') {
+        if(c.role==='assassin' && c.guess !== undefined) {
           const success=this.revealed[target].some(x=>x.role===c.guess)
-          this.write(who[i]+'の暗殺者の予想「'+card(c.guess!).name+'」は'+(success?'的中':'外れ')+'。')
+          this.write(who[i]+'の暗殺者の予想「'+card(c.guess).name+'」は'+(success?'的中':'外れ')+'。')
           if(success) special+=spec.power!
         }
       }

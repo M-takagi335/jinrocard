@@ -446,3 +446,44 @@ test('a disabled seer creates no private log or investigation', () => {
   assert.deepEqual(game.investigationsFor(0), [])
   assert.ok(game.log.every(entry => entry.privateTo !== 0))
 })
+
+test('assassin rejects an initial role found only in discard and sees only remaining copies', () => {
+  const game = new Duel(['hunter','knight','assassin','witch','trap','seer','spy'], ['witch','wolf','wolf','wolf','hunter','seer','spy'], {
+    rules: { deckSize: 7, opening: 3, handRefill: 0 },
+    rng: () => .99999,
+    npc: ({ hand }) => hand.slice(0, hand[0]?.role === 'witch' ? 2 : 1).map(({ id }) => ({ id })),
+  })
+  const play = (role: Role) => {
+    const selected = game.players[0].hand.find(item => item.role === role)!
+    assert.ok(game.lock([{ id: selected.id }]))
+    game.resolve()
+    assert.ok(game.nextNight())
+  }
+  play('hunter')
+  play('knight')
+  const initial = game.deckComposition(1)
+  assert.ok(initial.some(entry => entry.role === 'witch'))
+  assert.deepEqual(game.remainingComposition(1), [
+    { role: 'wolf', count: 1 }, { role: 'hunter', count: 1 },
+    { role: 'seer', count: 1 }, { role: 'spy', count: 1 },
+  ])
+  const assassin = game.players[0].hand.find(item => item.role === 'assassin')!
+  assert.equal(game.lock([{ id: assassin.id, guess: 'witch' }]), false)
+  assert.deepEqual(game.revealed, [[], []])
+  assert.ok(game.lock([{ id: assassin.id, guess: 'hunter' }]))
+  const hpBefore = game.players[1].hp
+  game.resolve()
+  assert.equal(game.players[1].hp, hpBefore)
+  assert.ok(game.log.some(entry => entry.text.includes('暗殺者の予想「狩人」は外れ')))
+})
+
+test('NPC assassin guesses from remaining public roles and omits a guess if none remain', () => {
+  const view: import('../src/duel.ts').NpcView = {
+    hand: [{ id: 1, role: 'assassin' }], hp: 20, enemyHp: 20, max: 2, noHeal: false, discard: [],
+    enemyDeck: [{ role: 'wolf', count: 1 }, { role: 'hunter', count: 1 }],
+    enemyDiscard: [{ id: 2, role: 'wolf' }],
+    enemyRemaining: [{ role: 'hunter', count: 1 }],
+  }
+  assert.deepEqual(chooseNpc(view, () => 0), [{ id: 1, guess: 'hunter' }])
+  assert.deepEqual(chooseNpc({ ...view, enemyRemaining: [] }, () => 0), [{ id: 1 }])
+})

@@ -393,3 +393,37 @@
   font-size: 13px;
   margin-bottom: 8px;
 }
+
+.guess-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+  gap: 8px;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.guess-option {
+  height: 100%;
+}
+.guess-option .art {
+  height: 70px;
+}
+.guess-option .card-name {
+  font-size: 16px;
+}
+.guess-option > span:last-child {
+  color: var(--gold);
+  font-size: 12px;
+}
+.guess-confirm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+}
+.guess-confirm span {
+  color: var(--gold);
+  font-size: 13px;
+}

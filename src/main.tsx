@@ -8,7 +8,8 @@ import { DeckViewer } from './DeckViewer.tsx'
 import { InvestigationPanel } from './InvestigationPanel.tsx'
 import { DeckGenerator } from './DeckGenerator.tsx'
 import { DECK_TYPES, PROFILES, generateDeck, type DeckType } from './generateDeck.ts'
-import { DeckComposition, Sheet } from './Sheet.tsx'
+import { Sheet } from './Sheet.tsx'
+import { AssassinPrediction } from './AssassinPrediction.tsx'
 import './style.css'
 
 function loadDeck():Role[] {
@@ -57,6 +58,7 @@ function App() {
     const timer=window.setTimeout(()=>{duel.resolve();refresh()},550)
     return ()=>window.clearTimeout(timer)
   },[duel,phase,night])
+  const guessOptions = phase === 'select' ? (duel?.remainingComposition(1) ?? []) : []
   const investigations = duel?.investigationsFor(0) ?? []
   const pending = investigations[readCount]
   const pendingSource = pending?.sourceId
@@ -239,12 +241,12 @@ function App() {
             {plays.filter(p => duel.players[0].hand.find(c => c.id === p.id)?.role === 'assassin').map((p, i) => (
               <div className="prediction" key={p.id}>
                 <span>暗殺者 {i + 1} の予想</span>
-                <button className="quiet" aria-haspopup="dialog" onClick={() => setOverlay({ type: 'guess', id: p.id })}>
-                  {p.guess ? card(p.guess).name + '（変更）' : '役職を選ぶ'}
+                <button className="quiet" aria-haspopup="dialog" disabled={!guessOptions.length} onClick={() => setOverlay({ type: 'guess', id: p.id })}>
+                  {p.guess ? card(p.guess).name + '（変更）' : guessOptions.length ? '役職を選ぶ' : '予想できる役職なし'}
                 </button>
               </div>
             ))}
-            <button className="primary action" disabled={(duel.players[0].hand.length>0&&!plays.length)||plays.some(p=>duel.players[0].hand.find(c=>c.id===p.id)?.role==='assassin'&&!p.guess)} onClick={()=>{if(duel.lock(plays)){setPlays([]);refresh()}}}>{duel.players[0].hand.length?'選択を確定':'パスを確定'} →</button></>}
+            <button className="primary action" disabled={(duel.players[0].hand.length>0&&!plays.length)||plays.some(p=>duel.players[0].hand.find(c=>c.id===p.id)?.role==='assassin'&&guessOptions.length>0&&!guessOptions.some(entry=>entry.role===p.guess))} onClick={()=>{if(duel.lock(plays)){setPlays([]);refresh()}}}>{duel.players[0].hand.length?'選択を確定':'パスを確定'} →</button></>}
 
           {!pending && phase==='choice'&&duel.prompt&&<div className="choice"><h2>{duel.prompt.title}</h2><div className="duel-cards">{duel.prompt.options.map(c=><CardTile key={c.id} role={c.role} onClick={()=>{duel.answer(c.id);refresh()}}/>)}</div></div>}
           {!pending && phase==='end'&&<button className="primary action" onClick={()=>{duel.nextNight();refresh()}}>次の夜へ →</button>}
@@ -306,17 +308,15 @@ function App() {
         />
       )}
       {overlay?.type === 'guess' && duel && (
-        <Sheet title="暗殺者の予想" onClose={closeOverlay}>
-          <p className="hint">相手が今夜出すと思う役職を選んでください。枚数は対戦開始時の投入枚数です。</p>
-          <DeckComposition
-            entries={duel.deckComposition(1)}
-            selected={plays.find(play => play.id === overlay.id)?.guess}
-            onSelect={role => {
-              setPlays(old => old.map(play => play.id === overlay.id ? { ...play, guess: role } : play))
-              closeOverlay()
-            }}
-          />
-        </Sheet>
+        <AssassinPrediction
+          entries={guessOptions}
+          initial={plays.find(play => play.id === overlay.id)?.guess}
+          onConfirm={role => {
+            setPlays(old => old.map(play => play.id === overlay.id ? { ...play, guess: role } : play))
+            closeOverlay()
+          }}
+          onClose={closeOverlay}
+        />
       )}
       {overlay?.type === 'delete' && (
         <Sheet title="保存したデッキを削除" onClose={closeOverlay}>
