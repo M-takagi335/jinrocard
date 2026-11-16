@@ -29,7 +29,7 @@ function composition(roles: readonly Role[]): readonly DeckEntry[] {
     return count === undefined ? [] : [Object.freeze({ role, count })]
   }))
 }
-export type NpcView = { hand: readonly Instance[]; hp:number; enemyHp:number; max:number; noHeal:boolean; discard:readonly Instance[]; enemyDiscard:readonly Instance[]; enemyDeck:readonly DeckEntry[]; enemyDrawPile:readonly DeckEntry[] }
+export type NpcView = { hand: readonly Instance[]; hp:number; enemyHp:number; max:number; noHeal:boolean; discard:readonly Instance[]; enemyDiscard:readonly Instance[]; enemyDeck:readonly DeckEntry[]; enemyRemaining:readonly DeckEntry[] }
 type Config = { hp:number; deckSize:number; opening:number; nightlyDraw:number; handRefill:number; handLimit:number; maxPlays:number; finalNight:number; finalTieBreak:'hp'|'draw' }
 type Options = { rng?:()=>number; rules?:Partial<Config>; npc?: (view:NpcView)=>Play[] }
 export function shuffle<T>(input:readonly T[], rng:()=>number): T[] {
@@ -53,13 +53,8 @@ export function chooseNpc(view:NpcView, rng:()=>number): Play[] {
   const ranked = view.hand.map(c => ({c, score:value(c.role,view.hp,view.noHeal,view.discard.length)+rng()*3}))
     .sort((a,b)=>b.score-a.score)
   const amount = Math.min(view.max, ranked.length, ranked[1]?.score >= 3 && rng() < .74 ? 2 : 1)
-  // Infer candidates using the same public counts that a player can inspect.
-  const pileCounts = new Map(view.enemyDrawPile.map(({ role, count }) => [role, count]))
-  const possible = view.enemyDeck.flatMap(({ role, count }) => {
-    const discarded = view.enemyDiscard.filter(card => card.role === role).length
-    return Array<Role>(Math.max(0, count - (pileCounts.get(role) ?? 0) - discarded)).fill(role)
-  })
-  const guesses = possible.length ? possible : view.enemyDeck.flatMap(({ role, count }) => Array<Role>(count).fill(role))
+  const candidates = view.enemyRemaining.length ? view.enemyRemaining : view.enemyDeck
+  const guesses = candidates.flatMap(({ role, count }) => Array<Role>(count).fill(role))
   return ranked.slice(0,amount).map(({c})=>c.role==='assassin'
     ? {id:c.id,guess:guesses[Math.floor(rng()*guesses.length)]} : {id:c.id})
 }
@@ -81,6 +76,7 @@ export class Duel {
   private rng:()=>number
   private npc:(view:NpcView)=>Play[]
   private npcPlays:Play[]=[]
+  private cardsInPlay = false
   private work:Generator<Prompt,void,number>|null=null
   constructor(deck:Role[], enemy:Role[]=NPC_DECK, options:Options={}) {
     this.rules={...RULES,...options.rules}
@@ -100,8 +96,15 @@ export class Duel {
   deckComposition(side: Side): readonly DeckEntry[] {
     return this.initialDecks[side]
   }
-  drawPileComposition(side: Side): readonly DeckEntry[] {
-    return composition(this.players[side].deck.map(card => card.role))
+  remainingComposition(side: Side): readonly DeckEntry[] {
+    const { deck, hand } = this.players[side]
+    const unique = new Map<number, Role>()
+    for (const { id, role } of [...deck, ...hand]) unique.set(id, role)
+    // Revealed cards stay visible after cleanup, but only count while still in play.
+    if (this.cardsInPlay) {
+      for (const { id, role } of this.revealed[side]) unique.set(id, role)
+    }
+    return composition([...unique.values()])
   }
   investigationsFor(side: Side): Investigation[] {
     const opponent = other(side)
@@ -171,7 +174,7 @@ export class Duel {
     for(const i of sides) yield* this.trim(i)
     const p=this.players[1], enemy=this.players[0]
     this.npcPlays=this.npc({hand:p.hand.map(c=>({...c})), hp:p.hp, enemyHp:enemy.hp, max:this.max(1),
-      noHeal:p.status.noHeal,discard:p.discard.map(c=>({...c})),enemyDiscard:enemy.discard.map(c=>({...c})),enemyDeck:this.deckComposition(0),enemyDrawPile:this.drawPileComposition(0)})
+      noHeal:p.status.noHeal,discard:p.discard.map(c=>({...c})),enemyDiscard:enemy.discard.map(c=>({...c})),enemyDeck:this.deckComposition(0),enemyRemaining:this.remainingComposition(0)})
     if(!this.accepts(1,this.npcPlays)) throw new Error('NPCが無効なカードを選択しました。')
     this.phase='select'
   }
@@ -196,6 +199,7 @@ export class Duel {
       })
       if(!all[i].length) this.write(who[i]+'は手札がないためパスした。')
     }
+    this.cardsInPlay = true
     this.phase='reveal'; return true
   }
   resolve() { if(this.phase==='reveal') this.run(this.effects()) }
@@ -214,7 +218,12 @@ export class Duel {
     if(a>0&&b>0)return false
     this.finish(a===b?'draw':a>0?0:1,'HPが0になった'); return true
   }
-  private clean() { for(const i of sides) this.players[i].discard.push(...this.revealed[i].map(({id,role})=>({id,role}))) }
+  private clean() {
+    for (const side of sides) {
+      this.players[side].discard.push(...this.revealed[side].map(({ id, role }) => ({ id, role })))
+    }
+    this.cardsInPlay = false
+  }
   private *effects():Generator<Prompt,void,number> {
     // Choose all disruption targets together.
     const targets=[new Set<number>(),new Set<number>()]

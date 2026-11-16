@@ -6,7 +6,7 @@ import { Sheet } from './Sheet.tsx'
 
 const tabs = [
   { id: 'initial', label: 'デッキ全体' },
-  { id: 'remaining', label: '残りの山札' },
+  { id: 'remaining', label: '残っているカード' },
 ] as const
 type Tab = typeof tabs[number]['id']
 
@@ -51,8 +51,8 @@ export function DeckViewer({ title, night, hp, initial, remaining, onClose }: {
         ))}
       </div>
       <div role="tabpanel" id={id + '-panel'} aria-labelledby={id + '-' + tab} tabIndex={0}>
-        <p className="hint">{tab === 'initial' ? '対戦開始時の構成' : '現在の山札の構成（順不同）'} · {total}枚</p>
-        {entries.length === 0 ? <p>山札は空です。</p> : (
+        <p className="hint">{tab === 'initial' ? '対戦開始時の構成' : '捨て札以外の構成'} · {total}枚</p>
+        {entries.length === 0 ? <p>残っているカードはありません。</p> : (
           <ul className="deck-viewer-list" key={tab}>
             {entries.map(({ role, count }) => {
               const spec = card(role)

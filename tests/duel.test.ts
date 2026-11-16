@@ -117,17 +117,17 @@ test('recovery excludes currently played cards and preserves instance identity',
     play()
     assert.deepEqual(game.prompt?.options.map(c=>c.id),[recovered.id])
     assert.equal(game.answer(game.revealed[0][1].id),false)
-    const countBeforeRecovery = game.drawPileComposition(0).find(entry => entry.role === recovered.role)?.count ?? 0
+    const countBeforeRecovery = game.remainingComposition(0).find(entry => entry.role === recovered.role)?.count ?? 0
     assert.equal(game.answer(recovered.id),true)
     assert.equal((role==='medium'?p.hand.at(-1):p.deck[0])?.id,recovered.id)
     assert.equal(p.discard.length,2)
-    if (role === 'keeper') {
-      const countBeforeDraw = game.drawPileComposition(0).find(entry => entry.role === recovered.role)?.count ?? 0
+    {
+      const countBeforeDraw = game.remainingComposition(0).find(entry => entry.role === recovered.role)?.count ?? 0
       assert.equal(countBeforeDraw, countBeforeRecovery + 1)
       assert.ok(game.nextNight())
-      assert.equal(game.players[0].hand.at(-1)?.id, recovered.id)
-      const countAfterDraw = game.drawPileComposition(0).find(entry => entry.role === recovered.role)?.count ?? 0
-      assert.equal(countAfterDraw, countBeforeDraw - 1)
+      if (role === 'keeper') assert.equal(game.players[0].hand.at(-1)?.id, recovered.id)
+      const countAfterDraw = game.remainingComposition(0).find(entry => entry.role === recovered.role)?.count ?? 0
+      assert.equal(countAfterDraw, countBeforeDraw)
     }
   }
 })
@@ -176,7 +176,7 @@ test('50 full NPC-style matches never duplicate or lose card instances',()=>{
       if(game.phase==='choice') assert.ok(game.answer(game.prompt!.options[0].id))
       else if(game.phase==='select'){
         const [p,q]=game.players
-        assert.ok(game.lock(chooseNpc({hand:p.hand,hp:p.hp,enemyHp:q.hp,max:game.max(0),noHeal:p.status.noHeal,discard:p.discard,enemyDiscard:q.discard,enemyDeck:game.deckComposition(1),enemyDrawPile:game.drawPileComposition(1)},rng)))
+        assert.ok(game.lock(chooseNpc({hand:p.hand,hp:p.hp,enemyHp:q.hp,max:game.max(0),noHeal:p.status.noHeal,discard:p.discard,enemyDiscard:q.discard,enemyDeck:game.deckComposition(1),enemyRemaining:game.remainingComposition(1)},rng)))
       }else if(game.phase==='reveal') game.resolve()
       else assert.ok(game.nextNight())
       for(const i of [0,1] as Side[]){
@@ -230,7 +230,9 @@ test('starting deck composition is public, unique, and independent of hidden zon
   })
   assert.ok(view)
   assert.deepEqual(view.enemyDeck, game.deckComposition(0))
-  assert.deepEqual(view.enemyDrawPile, game.drawPileComposition(0))
+  assert.deepEqual(view.enemyRemaining, game.remainingComposition(0))
+  assert.equal(Object.hasOwn(view, 'enemyDrawPile'), false)
+  assert.ok(view.enemyRemaining.every(entry => Object.keys(entry).sort().join(',') === 'count,role'))
   assert.equal(Object.hasOwn(view, 'enemyHand'), false)
   assert.equal(Object.hasOwn(view, 'enemyPlays'), false)
   const entries = game.deckComposition(1)
@@ -300,6 +302,7 @@ test('refill is configurable and draws as many as are available after using card
   game.resolve()
   assert.deepEqual(game.players.map(player => player.hand.length), [1, 1])
   assert.equal(game.log.filter(entry => entry.text.includes('夜終了時に手札を1枚補充')).length, 2)
+  assert.deepEqual(game.remainingComposition(0), [{ role: 'hunter', count: 1 }])
 })
 
 test('seer investigation stores exactly the sampled roles from the remaining hand, including zero and duplicates in the pool', () => {
@@ -367,7 +370,7 @@ test('an NPC draw later in the same night ages the player investigation', () => 
   assert.equal(game.investigationsFor(0)[0].night, 1)
 })
 
-test('public draw pile counts exclude hands, revealed cards and discard, and update after a reshuffle', () => {
+test('remaining counts include cards in hand and still in play, exclude discard, and update after a reshuffle', () => {
   const roles: Role[] = ['hunter', 'knight', 'witch', 'trap']
   const game = new Duel(roles, roles, {
     rules: { deckSize: 4, opening: 1, handRefill: 0 },
@@ -375,22 +378,48 @@ test('public draw pile counts exclude hands, revealed cards and discard, and upd
     npc: ({ hand }) => [{ id: hand[0].id }],
   })
   const initial = game.deckComposition(1)
-  assert.deepEqual(game.drawPileComposition(1), [{ role: 'witch', count: 1 }, { role: 'trap', count: 1 }])
-  game.players[1].deck.reverse()
-  assert.deepEqual(game.drawPileComposition(1), [{ role: 'witch', count: 1 }, { role: 'trap', count: 1 }])
-  game.players[1].deck.reverse()
+  assert.deepEqual(game.remainingComposition(0), initial)
+  // Changing zone or order alone cannot disclose where an instance sits.
+  const player = game.players[0]
+  player.deck.reverse()
+  player.hand.push(player.deck.pop()!)
+  assert.deepEqual(game.remainingComposition(0), initial)
+  player.deck.push(player.hand.pop()!)
+  player.deck.reverse()
+
   for (let night = 1; night <= 3; night++) {
-    const before = game.drawPileComposition(1)
-    assert.ok(game.lock([{ id: game.players[0].hand[0].id }]))
-    assert.deepEqual(game.drawPileComposition(1), before)
+    const before = game.remainingComposition(0)
+    assert.deepEqual(before, game.remainingComposition(1))
+    assert.ok(game.lock([{ id: player.hand[0].id }]))
+    assert.deepEqual(game.remainingComposition(0), before)
+    assert.deepEqual(game.remainingComposition(1), before)
     game.resolve()
-    assert.deepEqual(game.drawPileComposition(1), before)
-    if (night === 3) assert.deepEqual(before, [])
+    const after = before.filter(entry => entry.role !== roles[night - 1])
+    assert.deepEqual(game.remainingComposition(0), after)
+    assert.deepEqual(game.remainingComposition(1), after)
     assert.ok(game.nextNight())
+    if (night < 3) assert.deepEqual(game.remainingComposition(0), after)
   }
-  assert.deepEqual(game.drawPileComposition(1), [{ role: 'knight', count: 1 }, { role: 'witch', count: 1 }])
-  assert.deepEqual(game.drawPileComposition(0), game.drawPileComposition(1))
+  assert.ok(game.log.some(entry => entry.text.includes('シャッフル')))
+  assert.deepEqual(game.remainingComposition(0), initial)
+  assert.deepEqual(game.remainingComposition(1), initial)
   assert.strictEqual(game.deckComposition(1), initial)
+})
+
+test('discard choices remove the chosen instance while revealed cards remain counted until cleanup', () => {
+  const { game, play } = rig(['mason'], ['hunter'])
+  const player = game.players[0]
+  const total = () => game.remainingComposition(0).reduce((sum, entry) => sum + entry.count, 0)
+  play()
+  assert.match(game.prompt!.title, /共有者/)
+  assert.equal(total(), 20)
+  const duplicated = player.hand[0]
+  player.deck.push(duplicated)
+  assert.equal(total(), 20)
+  player.deck.pop()
+  assert.ok(game.answer(duplicated.id))
+  assert.equal(total(), 18)
+  assert.deepEqual(player.discard.map(card => card.id), [duplicated.id, game.revealed[0][0].id])
 })
 
 test('seer can sample a different remaining role with different randomness', () => {

@@ -301,7 +301,7 @@ function App() {
           night={duel.night}
           hp={duel.players[overlay.side].hp}
           initial={duel.deckComposition(overlay.side)}
-          remaining={duel.drawPileComposition(overlay.side)}
+          remaining={duel.remainingComposition(overlay.side)}
           onClose={closeOverlay}
         />
       )}
