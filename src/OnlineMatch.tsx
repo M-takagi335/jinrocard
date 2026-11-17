@@ -24,6 +24,8 @@ function clearInvite() {
   history.replaceState(null, '', url)
 }
 const formatCode = (code: string) => code.toUpperCase().replace(/[\s-]/g, '').slice(0, 10)
+type RequestPayload = Record<string, unknown>
+type PendingRequest = [payload: RequestPayload, preparation?: RequestPayload]
 
 export default function OnlineMatch({ options, onClose }: { options: MatchDeck[]; onClose: () => void }) {
   const [client] = useState(() => { try { return onlineClient() } catch { return null } })
@@ -32,9 +34,10 @@ export default function OnlineMatch({ options, onClose }: { options: MatchDeck[]
   const [code, setCode] = useState(() => formatCode(new URLSearchParams(location.search).get('room') ?? ''))
   const [mode, setMode] = useState<'create' | 'join'>(() => code ? 'join' : 'create')
   const [error, setError] = useState('')
+  const [syncError, setSyncError] = useState('')
   const [feedback, setFeedback] = useState('')
   const [busy, setBusy] = useState(false)
-  const [retry, setRetry] = useState<Record<string, unknown> | null>(null)
+  const [retry, setRetry] = useState<PendingRequest | null>(null)
   const [degraded, setDegraded] = useState(false)
   const [peek, setPeek] = useState<Role>()
   const [deckPreview, setDeckPreview] = useState(false)
@@ -46,6 +49,7 @@ export default function OnlineMatch({ options, onClose }: { options: MatchDeck[]
   const [confirmed, setConfirmed] = useState<Set<string>>(() => new Set())
   const writeInFlight = useRef(false)
   const refreshing = useRef(false)
+  const refreshQueued = useRef(false)
   const refreshFailures = useRef(0)
   const closedRooms = useRef(new Set<string>())
   const game = room?.game
@@ -68,13 +72,17 @@ export default function OnlineMatch({ options, onClose }: { options: MatchDeck[]
   }, [])
 
   const reload = useCallback(async () => {
-    if (!client || !connectedRoom || refreshing.current || writeInFlight.current || refreshFailures.current >= 3) return
+    if (!client || !connectedRoom || closedRooms.current.has(connectedRoom) || refreshFailures.current >= 3) return
+    if (refreshing.current) {
+      refreshQueued.current = true
+      return
+    }
     refreshing.current = true
     try {
       const update = await client.request({ op: 'status', id: connectedRoom })
       if (!closedRooms.current.has(connectedRoom)) {
         accept(update)
-        setError('')
+        setSyncError('')
       }
     } catch (failure) {
       if (closedRooms.current.has(connectedRoom)) return
@@ -84,12 +92,19 @@ export default function OnlineMatch({ options, onClose }: { options: MatchDeck[]
         setConnectedRoom(null)
         setRoom(null)
         setRetry(null)
+        setError(failure.message)
       } else {
         refreshFailures.current++
         setDegraded(true)
       }
-      setError(failure instanceof Error ? failure.message : '通信エラーです。')
-    } finally { refreshing.current = false }
+      setSyncError(failure instanceof Error ? failure.message : '通信エラーです。')
+    } finally {
+      refreshing.current = false
+      if (refreshQueued.current) {
+        refreshQueued.current = false
+        void reload()
+      }
+    }
   }, [client, connectedRoom, accept])
   const reconnect = useCallback(() => { refreshFailures.current = 0; void reload() }, [reload])
 
@@ -121,13 +136,18 @@ export default function OnlineMatch({ options, onClose }: { options: MatchDeck[]
     // Restore the room's applied deck once when entering from a saved browser session.
   }, [room?.id])
 
-  async function send(payload: Record<string, unknown>) {
+  async function send(payload: RequestPayload, preparation?: RequestPayload) {
     if (!client || writeInFlight.current) return
     writeInFlight.current = true
     setBusy(true)
     setError('')
+    setSyncError('')
     setFeedback('')
     try {
+      if (preparation) {
+        const registered = await client.request(preparation)
+        accept(registered)
+      }
       const update = await client.request(payload)
       setRetry(null)
       if ((payload.command as Command | undefined)?.kind === 'leave') {
@@ -146,7 +166,7 @@ export default function OnlineMatch({ options, onClose }: { options: MatchDeck[]
       }
     } catch (failure) {
       const issue = failure instanceof OnlineError ? failure : new OnlineError('通信エラーです。', false, true)
-      setRetry(issue.retry ? payload : null)
+      setRetry(issue.retry && payload.op !== 'join' ? [payload, preparation] : null)
       setDegraded(issue.retry)
       setError(issue.message)
       if (issue.gone && room) {
@@ -160,6 +180,11 @@ export default function OnlineMatch({ options, onClose }: { options: MatchDeck[]
       writeInFlight.current = false
       if (payload.op === 'command') void reload()
     }
+  }
+  function prepare() {
+    if (!room || !validDeck(chosen)) return
+    const request = (command: Command) => ({ op: 'command', id: room.id, request: crypto.randomUUID(), command })
+    void send(request({ kind: 'ready' }), deckMatches ? undefined : request({ kind: 'deck', cards: [...chosen] }))
   }
   function command(action: Command) {
     if (room) void send({ op: 'command', id: room.id, request: crypto.randomUUID(), command: action })
@@ -176,7 +201,7 @@ export default function OnlineMatch({ options, onClose }: { options: MatchDeck[]
       ? previous.filter(play => play.id !== id) : previous.length < (game?.max ?? 0) ? [...previous, { id }] : previous)
   }
   const blocked = busy || degraded || retry !== null
-  const canEdit = !room || room.phase === 'lobby' && !room.left.some(Boolean)
+  const canEdit = !room || room.phase === 'lobby' && !room.left.some(Boolean) && !room.ready[room.side]
   const deckPicker = (
     <section className="online-picker">
       <h3>自分のデッキ</h3>
@@ -198,7 +223,6 @@ export default function OnlineMatch({ options, onClose }: { options: MatchDeck[]
       <div className="online-actions">
         {room?.ownDeck && selected !== 'room-current' && !deckMatches && <button className="quiet" onClick={() => setSelected('room-current')}>登録済みの構成に戻す</button>}
         <button className="quiet" onClick={() => setDeckPreview(true)}>選択したデッキを確認</button>
-        {room && <button className="quiet" disabled={blocked || deckMatches} onClick={() => command({ kind: 'deck', cards: chosen })}>このデッキを使う</button>}
       </div>
     </section>
   )
@@ -214,11 +238,8 @@ export default function OnlineMatch({ options, onClose }: { options: MatchDeck[]
     {!game || !room ? (
       <Sheet title="オンライン対戦" className="online-sheet" onClose={() => { clearInvite(); onClose() }}>
         {!room && !connectedRoom && <>
-          <div className="online-actions">
-            <button className={mode === 'create' ? 'primary' : 'quiet'} onClick={() => { setMode('create'); setRetry(null) }}>ルームを作成</button>
-            <button className={mode === 'join' ? 'primary' : 'quiet'} onClick={() => { setMode('join'); setRetry(null) }}>ルームに参加</button>
-          </div>
           {mode === 'create' ? <>
+            <button className="quiet" disabled={busy} onClick={() => { setMode('join'); setRetry(null); setError('') }}>ルームコードを入力</button>
             {deckPicker}
             <button className="primary" disabled={busy || !!retry} onClick={() => void send({ op: 'create', cards: chosen, request: crypto.randomUUID() })}>このデッキでルームを作成</button>
           </> : <form className="online-form" onSubmit={event => { event.preventDefault(); if (!busy && !retry && code.length === 10) void send({ op: 'join', code }) }}>
@@ -226,6 +247,7 @@ export default function OnlineMatch({ options, onClose }: { options: MatchDeck[]
             <input id="invite-code" autoCapitalize="characters" autoComplete="off" value={code}
               onChange={event => setCode(formatCode(event.target.value))} />
             <button className="primary" type="submit" disabled={busy || !!retry || code.length !== 10}>参加する</button>
+            <button className="quiet" type="button" disabled={busy} onClick={() => { setMode('create'); setRetry(null); setError('') }}>作成画面へ</button>
           </form>}
         </>}
         {!room && connectedRoom && <p role="status">ルームに再接続中…</p>}
@@ -248,21 +270,22 @@ export default function OnlineMatch({ options, onClose }: { options: MatchDeck[]
             : !room.connected[opponent] ? '相手は切断中です。' : room.ready[opponent] ? '相手は準備完了' : '相手の準備待ち'}</p>
           {canEdit && deckPicker}
           <div className="online-actions">
-            <button className="primary" disabled={blocked || !room.joined || room.ready[room.side] || room.left.some(Boolean) || !deckMatches}
-              onClick={() => command({ kind: 'ready' })}>{room.ready[room.side] ? '準備完了済み' : '準備完了'}</button>
+            {room.ready[room.side] ? <p role="status">準備完了・相手を待っています</p> :
+              <button className="primary" disabled={blocked || !room.joined || room.left.some(Boolean) || !validDeck(chosen)}
+                onClick={prepare}>{busy ? '送信中…' : '準備完了'}</button>}
             <button className="quiet" disabled={busy} onClick={() => command({ kind: 'leave' })}>ルーム退出</button>
           </div>
         </>}
         {feedback && <p className="notice" role="status">{feedback}</p>}
-        {error && <p className="notice" role="alert">{error}</p>}
-        {(retry || degraded) && <button className="quiet" disabled={busy} onClick={() => retry ? void send(retry) : reconnect()}>再試行</button>}
+        {(error || syncError) && <p className="notice" role="alert">{error || syncError}</p>}
+        {(retry || degraded && connectedRoom) && <button className="quiet" disabled={busy} onClick={() => retry ? void send(...retry) : reconnect()}>再試行</button>}
       </Sheet>
     ) : <section className="online-battle">
       <div className="section-title battle-title"><h1>第{game.night}夜 <small>/ {RULES.finalNight}</small></h1>
         <button className="quiet" disabled={busy} onClick={() => command({ kind: 'leave' })}>ルーム退出</button></div>
       <p role="status">{degraded ? '再接続中…' : !room.connected[opponent] && !room.left[opponent] ? '相手は切断中です。再接続をお待ちください。' : ''}</p>
-      {error && <p className="notice" role="alert">{error}</p>}
-      {(retry || degraded) && <button className="quiet" disabled={busy} onClick={() => retry ? void send(retry) : reconnect()}>再試行</button>}
+      {(error || syncError) && <p className="notice" role="alert">{error || syncError}</p>}
+      {(retry || degraded) && <button className="quiet" disabled={busy} onClick={() => retry ? void send(...retry) : reconnect()}>再試行</button>}
       <div className="fighters">
         {[room.side, opponent].map((side, index) => <section key={side} className={'panel fighter side' + index}>
           <div className="fighter-line"><strong>{index ? '相手' : 'あなた'}</strong><span><b>{game.players[side].hp}</b> / {RULES.hp} HP</span></div>
