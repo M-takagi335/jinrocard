@@ -18,6 +18,8 @@ function guidedRun() {
   assert.deepEqual([duel.nightHpChange(0), duel.nightHpChange(1)], [{ lost: 3, gained: 0 }, { lost: 3, gained: 0 }])
   const handSize = duel.players[0].hand.length
   assert.ok(duel.nextNight())
+  assert.deepEqual(duel.nightHpChange(0), { lost: 0, gained: 0 })
+  assert.deepEqual(duel.nightHpChange(1), { lost: 0, gained: 0 })
   assert.equal(duel.players[0].hand.length, handSize + 1)
   assert.ok(lockTutorialNight(duel, play('hunter')))
   duel.resolve()

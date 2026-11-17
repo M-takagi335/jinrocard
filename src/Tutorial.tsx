@@ -82,7 +82,7 @@ export function Tutorial({ onHome }: { onHome: () => void }) {
           const name = side === 0 ? 'あなた' : '練習相手'
           return <section className={'panel fighter side' + side} key={name}>
             <div className="fighter-line"><strong>{name}</strong><span><b>{player.hp}</b> / {RULES.hp} HP</span></div>
-            <HpChanges {...duel.nightHpChange(side)} animate />
+            <HpChanges {...duel.nightHpChange(side)} />
             <progress aria-label={name + 'のHP'} value={player.hp} max={RULES.hp} />
             <div className="stats">山札 {player.deck.length}　手札 {player.hand.length}</div>
           </section>
