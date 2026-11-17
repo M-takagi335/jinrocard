@@ -4,7 +4,10 @@ import type { StrongNpcView } from '../src/strongNpc.ts'
 
 type ReadonlyTree<T> = T extends object ? { readonly [K in keyof T]: ReadonlyTree<T[K]> } : T
 export type ExperimentalView = ReadonlyTree<StrongNpcView & { investigations: Investigation[] }>
-export type Features = Readonly<{ prediction?: boolean; lookahead?: boolean; intel?: boolean }>
+export type Features = Readonly<{
+  prediction?: boolean; lookahead?: boolean; intel?: boolean
+  assassin?: boolean; assassinIntel?: boolean; assassinTiming?: boolean
+}>
 
 // Adapter kept outside the decision function. All collections are detached snapshots.
 export function experimentalView(duel: Duel, side: Side): ExperimentalView {
@@ -44,6 +47,25 @@ export function handEvidence(view: ExperimentalView) {
   return evidence
 }
 
+export function assassinEvidence(view: ExperimentalView) {
+  const hand = new Map<Role, { weight: number; kind: 'seer' | 'prophet' }>()
+  const positions = new Map<number, Role>()
+  for (const record of view.investigations) {
+    const age = view.night - record.night
+    if (age < 1) continue
+    for (const entry of record.cards) {
+      if (record.kind === 'prophet' && entry.status === 'observed' && entry.position) {
+        positions.set(entry.position, entry.role)
+      }
+      const weight = record.kind === 'seer' && (entry.status === 'observed' || entry.status === 'old') ?
+        (entry.status === 'observed' ? .95 : .68) * .63 ** (age - 1) :
+        record.kind === 'prophet' && entry.status === 'drawn' ? .88 * .64 ** (age - 1) : 0
+      if (weight >= .12 && weight > (hand.get(entry.role)?.weight ?? 0)) hand.set(entry.role, { weight, kind: record.kind })
+    }
+  }
+  return { hand, positions }
+}
+
 function priority(role: Role, hp: number, enemyHp: number, pressure: number, healing: number, noHeal: boolean) {
   switch (role) {
     case 'wolf': return 3.3
@@ -72,13 +94,19 @@ function predict(view: ExperimentalView, features: Features, rng: () => number):
   const raidRate = (observed.filter(raid).length + 6 * own.filter(raid).length / Math.max(1, own.length)) / recent
   const defenseRate = (observed.filter(defense).length + 2) / (recent + 2)
   const healing = view.hp < view.maxHp && own.includes('witch') ? .65 : 0
-  const evidence = features.intel ? handEvidence(view) : new Map<Role, number>()
+  const observations = features.assassinIntel ? assassinEvidence(view) : undefined
+  const evidence = observations ? new Map([...observations.hand].map(([role, e]) => [role, e.weight])) :
+    features.intel ? handEvidence(view) : new Map<Role, number>()
+  for (const role of observations?.positions.values() ?? []) {
+    // Keep enough unknown cards to fill a legal sampled hand even if a record is stale.
+    if (pool.length > view.enemyHandCount) remove(pool, role)
+  }
   const twoRate = (3 + view.enemyHistory.filter(turn => turn.length === 2).length) / (5 + view.enemyHistory.length)
   const bias = new Map(view.enemyRemaining.map(({ role }) => {
     const expected = (initial.get(role) ?? 0) * observed.length / RULES.deckSize
     return [role, (observed.filter(r => r === role).length - expected) / (4 + expected)]
   }))
-  return Array.from({ length: 24 }, () => {
+  return Array.from({ length: features.assassin ? 48 : 24 }, () => {
     const unseen = [...pool], hand: Role[] = []
     for (const [role, weight] of evidence) {
       if (hand.length < view.enemyHandCount && unseen.includes(role) && rng() < weight) {
@@ -88,10 +116,13 @@ function predict(view: ExperimentalView, features: Features, rng: () => number):
     }
     while (hand.length < view.enemyHandCount && unseen.length) hand.push(take(unseen, rng))
     const ranked = hand.map(role => {
-      const situational = features.prediction ?
+      const situational = features.prediction || features.assassin ?
         (raid(role) ? -.75 * defenseRate : role === 'mad' ? twoRate * .9 : 0) : 0
-      return { role, score: priority(role, view.enemyHp, view.hp, features.prediction ? raidRate : 0,
-        features.prediction ? healing : 0, view.enemyNoHeal) + situational + 1.7 * (bias.get(role) ?? 0) + rng() * 4.6 }
+      const attackPressure = features.prediction || features.assassin ? raidRate : 0
+      const survival = features.assassin && view.enemyHp <= 5 && defense(role) ? .65 : 0
+      return { role, score: priority(role, view.enemyHp, view.hp, attackPressure,
+        features.prediction || features.assassin ? healing : 0, view.enemyNoHeal)
+        + situational + survival + 1.7 * (bias.get(role) ?? 0) + rng() * 4.6 }
     }).sort((a, b) => b.score - a.score)
     const amount = view.enemyMax >= 2 && ranked.length >= 2 && rng() < twoRate && ranked[1].score >= 1.7 ? 2 : 1
     return {
@@ -100,6 +131,16 @@ function predict(view: ExperimentalView, features: Features, rng: () => number):
       cancel: [0, 0, 0, 0].map(() => Math.floor(rng() * 2)) as Scenario['cancel'],
     }
   })
+}
+
+type RoleForecast = { role: Role; probability: number }
+export function assassinForecast(view: ExperimentalView, rng: () => number, intel: boolean): RoleForecast[] {
+  return forecast(view, predict(view, { assassin: true, assassinIntel: intel }, rng))
+}
+function forecast(view: ExperimentalView, scenarios: Scenario[]): RoleForecast[] {
+  return view.enemyRemaining.map(({ role }) => ({ role,
+    probability: scenarios.filter(s => s.actions.some(a => a.role === role)).length / scenarios.length,
+  })).sort((a, b) => b.probability - a.probability)
 }
 
 // Public HP projection follows the engine phases. Non-HP effects are scored separately.
@@ -171,16 +212,22 @@ export function experimentalStrongNpc(view: ExperimentalView, rng: () => number,
 }): Play[] {
   if (!view.hand.length) return []
   const scenarios = predict(view, features, rng)
-  const guesses = view.enemyRemaining.map(entry => ({ ...entry,
+  const distribution = features.assassin ? forecast(view, scenarios) : []
+  const probabilities = new Map(distribution.map(entry => [entry.role, entry.probability]))
+  const guesses = features.assassin ? distribution.slice(0, 3).map(entry => entry.role) : view.enemyRemaining.map(entry => ({ ...entry,
     hits: scenarios.filter(s => s.actions.some(a => a.role === entry.role)).length,
   })).sort((a, b) => b.hits - a.hits || b.count - a.count).slice(0, 2).map(e => e.role)
   const hp: Pair<number> = [view.hp, view.enemyHp]
   const late = Math.max(0, 1 - (view.finalNight - view.night) / 5)
   const final = view.night >= view.finalNight
   const values = combinations(view.hand, view.max).flatMap(move => {
-    const alternatives = move.some(a => a.role === 'assassin') && guesses.length ? guesses : [undefined]
-    return alternatives.map(guess => {
-      const actions = move.map(({ role }) => ({ role, guess: role === 'assassin' ? guess : undefined }))
+    const count = move.filter(a => a.role === 'assassin').length
+    const alternatives = !count || !guesses.length ? [[undefined, undefined]] :
+      count === 2 && features.assassin ? guesses.flatMap(a => guesses.map(b => [a, b])) :
+        guesses.map(guess => [guess, guess])
+    return alternatives.map(pair => {
+      let prediction = 0
+      const actions = move.map(({ role }) => ({ role, guess: role === 'assassin' ? pair[prediction++] : undefined }))
       const after = view.hand.filter(entry => !move.includes(entry)).map(entry => entry.role)
       let score = 0
       for (const scenario of scenarios) {
@@ -198,7 +245,18 @@ export function experimentalStrongNpc(view: ExperimentalView, rng: () => number,
       }
       const cost = actions.reduce((sum, a) => sum + (after.length < view.handRefill ? .08 : .25) +
         (['witch','trap','dire','wolf'].includes(a.role) ? .27 : .05), 0)
-      return { move, actions, after, score: score / scenarios.length - (final ? 0 : cost) + rng() * .17 }
+      let timing = 0
+      if (features.assassinTiming && !final) {
+        const timeLeft = Math.min(1, (view.finalNight - view.night) / 4)
+        const canWait = Math.min(1, view.hp / 8) * (view.hand.length === RULES.handLimit ? .45 : 1)
+        const investigate = (role: Role) => role === 'seer' || role === 'prophet'
+        const waitingIntel = after.some(investigate) || actions.some(a => investigate(a.role))
+        const threshold = waitingIntel ? .49 : .36
+        timing -= actions.reduce((sum, a) => a.role === 'assassin' ?
+          sum + Math.max(0, threshold - (a.guess ? probabilities.get(a.guess) ?? 0 : 0)) * 2.1 : sum, 0) * timeLeft * canWait
+        if (after.includes('assassin') && actions.some(a => investigate(a.role))) timing += .40 * timeLeft * canWait
+      }
+      return { move, actions, after, score: score / scenarios.length - (final ? 0 : cost) + timing + rng() * .17 }
     })
   }).sort((a, b) => b.score - a.score)
 
