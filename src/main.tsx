@@ -15,6 +15,7 @@ import type { DeckType } from './generateDeck.ts'
 import { cardsForMatch, generatedMatchType } from './matchDeck.ts'
 import { DeckComposition, Sheet } from './Sheet.tsx'
 import { AssassinPrediction } from './AssassinPrediction.tsx'
+import { Tutorial } from './Tutorial.tsx'
 import './style.css'
 import './card-art.css'
 
@@ -90,7 +91,7 @@ function App() {
   const lastMatch = useRef<{ selected: MatchDeck; npc: typeof npcDeck } | null>(null)
   const [myMatchId, setMyMatchId] = useState<string>()
   const [quickMatchId, setQuickMatchId] = useState('standard')
-  const [page, setPage] = useState<'home' | 'builder'>('home')
+  const [page, setPage] = useState<'home' | 'builder' | 'tutorial'>('home')
   const [quickDecks, setQuickDecks] = useState<Partial<Record<DeckType, MatchDeck>>>({})
   const [matchError, setMatchError] = useState('')
   const [duel,setDuel]=useState<Duel|null>(null)
@@ -299,6 +300,7 @@ function App() {
       {online ? Online ? <Online options={matchDecks(deck, name, saved)} onClose={() => setOnline(false)} />
         : <Sheet title="オンライン対戦" onClose={() => setOnline(false)}><p role="status">{onlineLoadError
           ? '現在オンライン対戦を利用できません。NPC対戦は引き続き遊べます。' : 'オンライン対戦を読み込んでいます…'}</p></Sheet>
+        : page === 'tutorial' ? <Tutorial onHome={home} />
         : !duel ? <>
         {page === 'home' ? <>
           <section className="hero">
@@ -311,6 +313,7 @@ function App() {
                 <button className="primary" onClick={openMatchSetup}>NPCと対戦</button>
                 <button className="quiet" onClick={() => { setOnline(true); window.scrollTo(0, 0) }}>オンライン対戦</button>
                 <button className="quiet" onClick={() => { setPage('builder'); window.scrollTo(0, 0) }}>デッキを作る</button>
+                <button className="quiet" onClick={() => { setPage('tutorial'); window.scrollTo(0, 0) }}>チュートリアル</button>
               </div>
               <div className="home-links">
                 <button className="quiet" aria-expanded={rules} onClick={() => setRules(value => !value)}>遊び方</button>
