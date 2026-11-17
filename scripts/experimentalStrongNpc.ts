@@ -7,6 +7,7 @@ export type ExperimentalView = ReadonlyTree<StrongNpcView & { investigations: In
 export type Features = Readonly<{
   prediction?: boolean; lookahead?: boolean; intel?: boolean
   assassin?: boolean; assassinIntel?: boolean; assassinTiming?: boolean
+  accurateFuture?: boolean; fast?: boolean
 }>
 
 // Adapter kept outside the decision function. All collections are detached snapshots.
@@ -106,7 +107,7 @@ function predict(view: ExperimentalView, features: Features, rng: () => number):
     const expected = (initial.get(role) ?? 0) * observed.length / RULES.deckSize
     return [role, (observed.filter(r => r === role).length - expected) / (4 + expected)]
   }))
-  return Array.from({ length: features.assassin ? 48 : 24 }, () => {
+  return Array.from({ length: features.assassin && !features.fast ? 48 : 24 }, () => {
     const unseen = [...pool], hand: Role[] = []
     for (const [role, weight] of evidence) {
       if (hand.length < view.enemyHandCount && unseen.includes(role) && rng() < weight) {
@@ -207,12 +208,83 @@ function combinations<T>(hand: readonly T[], max: number) {
   return hand.flatMap((entry, i) => [[entry], ...(max >= 2 ? hand.slice(i + 1).map(next => [entry, next]) : [])])
 }
 
+function distinctBy<T>(values: T[], key: (value: T) => string) {
+  const seen = new Set<string>()
+  return values.filter(value => {
+    const id = key(value)
+    if (seen.has(id)) return false
+    seen.add(id)
+    return true
+  })
+}
+
+type Zones = { hand: Role[]; deck: Role[]; discard: Role[] }
+
+// Inputs are sampled zones. Run supply effects in their committed order, before
+// current plays reach the discard pile. Cleanup, refill, trim and dawn follow.
+export function nextSampledZones(zones: Zones, committed: readonly Action[], active: readonly Action[],
+  enemy: readonly Action[], hp: number, refill: number, rng: () => number): Zones {
+  const { hand, deck, discard } = zones
+  const draw = (n: number) => {
+    for (let i = 0; i < n; i++) {
+      if (!deck.length) while (discard.length) deck.push(take(discard, rng))
+      const next = deck.shift()
+      if (next) hand.push(next)
+    }
+  }
+  const pick = (pool: Role[], high: boolean) => {
+    if (!pool.length) return undefined
+    const sign = high ? 1 : -1
+    let best = 0
+    for (let i = 1; i < pool.length; i++) {
+      if (sign * priority(pool[i], hp, 20, 0, 0, false) > sign * priority(pool[best], hp, 20, 0, 0, false)) best = i
+    }
+    return pool.splice(best, 1)[0]
+  }
+  const trim = () => {
+    while (hand.length > RULES.handLimit) discard.push(pick(hand, false)!)
+  }
+  const attacks = enemy.some(({ role }) => card(role).category === 'attack')
+  for (const { role } of active) {
+    if (role === 'merchant' || role === 'mason' || (role === 'spy' && attacks) || (role === 'jester' && !attacks)) {
+      draw(card(role).power!)
+      if (role === 'mason' && hand.length) discard.push(pick(hand, false)!)
+    } else if (role === 'medium' || role === 'keeper') {
+      const recovered = pick(discard, true)
+      if (recovered && role === 'medium') hand.push(recovered)
+      else if (recovered) deck.unshift(recovered)
+    }
+  }
+  discard.push(...committed.map(a => a.role))
+  draw(Math.max(0, Math.min(refill, RULES.handLimit) - hand.length))
+  trim()
+  draw(RULES.nightlyDraw)
+  trim()
+  return zones
+}
+
+function sampleDeck(pool: Role[], rng: () => number, observed?: ReadonlyMap<number, Role>) {
+  const deck: (Role|undefined)[] = Array(pool.length).fill(undefined)
+  for (const [position, role] of observed ?? []) {
+    if (position >= 1 && position <= deck.length && !deck[position - 1] && pool.includes(role)) {
+      deck[position - 1] = role
+      remove(pool, role)
+    }
+  }
+  return deck.map(role => role ?? take(pool, rng))
+}
+
+export function nextNightPayoff(hp: Pair<number>, start: Pair<number>, late: number, nextIsFinal: boolean) {
+  return payoff(hp, start, late, nextIsFinal)
+}
+
 export function experimentalStrongNpc(view: ExperimentalView, rng: () => number, features: Features = {
   prediction: true, lookahead: true, intel: true,
 }): Play[] {
   if (!view.hand.length) return []
   const scenarios = predict(view, features, rng)
-  const distribution = features.assassin ? forecast(view, scenarios) : []
+  const needsGuess = !features.fast || view.hand.some(entry => entry.role === 'assassin')
+  const distribution = features.assassin && needsGuess ? forecast(view, scenarios) : []
   const probabilities = new Map(distribution.map(entry => [entry.role, entry.probability]))
   const guesses = features.assassin ? distribution.slice(0, 3).map(entry => entry.role) : view.enemyRemaining.map(entry => ({ ...entry,
     hits: scenarios.filter(s => s.actions.some(a => a.role === entry.role)).length,
@@ -220,7 +292,9 @@ export function experimentalStrongNpc(view: ExperimentalView, rng: () => number,
   const hp: Pair<number> = [view.hp, view.enemyHp]
   const late = Math.max(0, 1 - (view.finalNight - view.night) / 5)
   const final = view.night >= view.finalNight
-  const values = combinations(view.hand, view.max).flatMap(move => {
+  const allMoves = combinations(view.hand, view.max)
+  const moves = features.fast ? distinctBy(allMoves, move => move.map(a => a.role).join(',')) : allMoves
+  const values = moves.flatMap(move => {
     const count = move.filter(a => a.role === 'assassin').length
     const alternatives = !count || !guesses.length ? [[undefined, undefined]] :
       count === 2 && features.assassin ? guesses.flatMap(a => guesses.map(b => [a, b])) :
@@ -260,14 +334,16 @@ export function experimentalStrongNpc(view: ExperimentalView, rng: () => number,
     })
   }).sort((a, b) => b.score - a.score)
 
-  const beam = features.lookahead && !final ? values.slice(0, 4) : values.slice(0, 1)
+  const beam = features.lookahead && !final ? values.slice(0, features.fast ? 3 : 4) : values.slice(0, 1)
   if (beam.length > 1) {
     const ownPool = expand(view.ownRemaining)
     for (const entry of view.hand) remove(ownPool, entry.role)
     const enemyPool = expand(view.enemyRemaining)
     // Shared current scenarios and random seeds across candidates. A neutral,
     // greedy opponent policy makes this a two-night approximation.
-    const futures = [0, 6, 12, 18].map(index => ({ scenario: scenarios[index], seed: Math.floor(rng() * 0x100000000) }))
+    const futures = (features.fast ? [0, 8, 16] : [0, 6, 12, 18])
+      .map(index => ({ scenario: scenarios[index], seed: Math.floor(rng() * 0x100000000) }))
+    const observed = features.accurateFuture ? assassinEvidence(view).positions : undefined
     for (const move of beam) {
       let score = 0
       for (const { scenario, seed } of futures) {
@@ -283,18 +359,30 @@ export function experimentalStrongNpc(view: ExperimentalView, rng: () => number,
           while (left.length < count && available.length) left.push(take(available, nextRandom))
           return left
         }
-        const own = draw([...move.after], [...ownPool, ...(view.deckCount < 3 ? view.discard.map(c => c.role) : [])], result.supplies[0])
-        const enemy = draw(leftEnemy, [...unusedEnemy, ...(unusedEnemy.length < 3 ? view.enemyDiscard.map(c => c.role) : [])], result.supplies[1])
+        const ownProjected = features.accurateFuture ? nextSampledZones({
+          hand: [...move.after], deck: sampleDeck([...ownPool], nextRandom), discard: view.discard.map(c => c.role),
+        }, move.actions, result.active[0], scenario.actions, result.hp[0], view.handRefill, nextRandom) : undefined
+        const enemyProjected = features.accurateFuture ? nextSampledZones({
+          hand: leftEnemy, deck: sampleDeck(unusedEnemy, nextRandom, observed), discard: view.enemyDiscard.map(c => c.role),
+        }, scenario.actions, result.active[1], move.actions, result.hp[1], view.handRefill, nextRandom) : undefined
+        const own = ownProjected?.hand ??
+          draw([...move.after], [...ownPool, ...(view.deckCount < 3 ? view.discard.map(c => c.role) : [])], result.supplies[0])
+        const enemy = enemyProjected?.hand ??
+          draw(leftEnemy, [...unusedEnemy, ...(unusedEnemy.length < 3 ? view.enemyDiscard.map(c => c.role) : [])], result.supplies[1])
         const max = (i: number) => result.active[1 - i].some(a => a.role === 'tyrant') ? 1 : RULES.maxPlays
         const theirs = enemy.map(role => ({ role, score: priority(role, result.hp[1], result.hp[0], 0, 0, false) }))
           .sort((a, b) => b.score - a.score).slice(0, max(1))
-          .map(({ role }) => ({ role, guess: role === 'assassin' ? guessFrom(expand(view.ownRemaining), nextRandom) : undefined }))
-        const nextGuess = guessFrom(expand(view.enemyRemaining), nextRandom)
+          .map(({ role }) => ({ role, guess: role === 'assassin'
+            ? guessFrom(ownProjected ? [...ownProjected.hand, ...ownProjected.deck] : expand(view.ownRemaining), nextRandom)
+            : undefined }))
+        const nextGuess = guessFrom(enemyProjected ? [...enemyProjected.hand, ...enemyProjected.deck] : expand(view.enemyRemaining), nextRandom)
         let best = -Infinity
-        for (const action of own.length ? combinations(own, max(0)) : [[]]) {
+        const nextMoves = own.length ? combinations(own, max(0)) : [[]]
+        for (const action of features.fast ? distinctBy(nextMoves, roles => roles.join(',')) : nextMoves) {
           const next = projectNight([action.map(role => ({ role, guess: role === 'assassin' ? nextGuess : undefined })), theirs],
             result.hp, scenario.cancel, view.maxHp)
-          best = Math.max(best, payoff(next.hp, result.hp, late, false))
+          best = Math.max(best, nextNightPayoff(next.hp, result.hp, late,
+            !!features.accurateFuture && view.night + 1 === view.finalNight))
         }
         score += best
       }
