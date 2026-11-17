@@ -751,12 +751,12 @@ html:has(.match-contents[open]) {
 }
 .online-battle .battle-title button { flex-shrink: 0; }
 .online-battle .battle-tools { flex-wrap: wrap; }
-.online-log summary { cursor: pointer; }
+.online-log summary, .chronicle summary { cursor: pointer; }
 html:has(.online-sheet[open], .online-battle ~ .sheet[open]) { overflow: hidden; }
 .online-sheet { overflow: hidden; }
 .online-sheet .sheet-body { min-height: 0; }
 .online-sheet:has(~ .sheet[open]) .sheet-body { overflow: hidden; }
 @media (max-width: 580px) {
-  .online-log .log { max-height: none; }
+  .online-log .log, .chronicle .log { max-height: min(45dvh, 22rem); }
   .online-actions button, .online-form input, .online-form button { min-height: 44px; }
 }

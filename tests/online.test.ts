@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { STARTER, type Role } from '../src/cards.ts'
+import { ROLES, STARTER, type Role } from '../src/cards.ts'
 import { Duel } from '../src/duel.ts'
 import { applyCommand, gameView, newRoom, parseCommand, replay } from '../src/onlineProtocol.ts'
 import { random } from '../scripts/balance.ts'
@@ -237,3 +237,53 @@ test('both NPC modes can finish a match without an online service', () => {
     assert.notEqual(game.winner, null)
   }
 })
+
+for (const role of ROLES) {
+  test(`online replay resolves ${role} consistently for both viewers`, () => {
+    // Same production rules and entropy; compare the command replay to a direct engine resolution.
+    for (let seed = 1; seed <= 200; seed++) {
+      const deck = [...ROLES]
+      const { room, word } = started(deck, deck, seed)
+      const initial = gameView(room, 0)!
+      const enemy = gameView(room, 1)!
+      const selected = initial.hand.find(card => card.role === role)
+      const reply = enemy.hand.find(card => card.role === (role === 'jester' ? 'seer' : 'wolf'))
+      const replyExtra = enemy.hand.find(card => card.role === 'witch')
+      if (!selected || !reply || (role === 'mad' && !replyExtra)) continue
+      const first = [{ id: selected.id, guess: role === 'assassin' ? reply.role : undefined }]
+      const second = [{ id: reply.id }, ...(role === 'mad' && replyExtra ? [{ id: replyExtra.id }] : [])]
+      const direct = new Duel(deck, deck, { twoHumans: true, rng: random(seed) })
+      assert.ok(direct.lockBoth([first, second]))
+      direct.resolve()
+      applyCommand(room, 0, parseCommand({ kind: 'lock', night: 1, plays: first }), true, word)
+      assert.deepEqual(gameView(room, 1), { ...enemy, locked: [true, false] })
+      applyCommand(room, 1, parseCommand({ kind: 'lock', night: 1, plays: second }), true, word)
+      while (direct.prompt) {
+        const { side, options } = direct.prompt
+        const resumed = JSON.parse(JSON.stringify(room))
+        const prompt = gameView(resumed, side)!.prompt!
+        assert.deepEqual(prompt.options, options)
+        assert.equal(gameView(resumed, (1 - side) as 0 | 1)!.prompt, null)
+        const id = options[0].id
+        assert.ok(direct.answer(id))
+        applyCommand(room, side, { kind: 'answer', night: 1, step: prompt.step, id }, true, word)
+      }
+      const a = gameView(room, 0)!, b = gameView(room, 1)!
+      assert.deepEqual(a.revealed, b.revealed)
+      assert.equal(a.revealed[0][0].role, role)
+      assert.deepEqual(a.players, b.players)
+      assert.equal(a.phase, direct.phase)
+      for (const side of [0, 1] as const) {
+        const current = side === 0 ? a : b
+        assert.deepEqual(current.hand, direct.players[side].hand)
+        assert.equal(current.players[side].hp, direct.players[side].hp)
+        assert.deepEqual(current.players[side].hpChange, direct.nightHpChange(side))
+        assert.deepEqual(current.players[side].discard, direct.players[side].discard.map(card => card.role))
+        assert.deepEqual(current.investigations, direct.investigationsFor(side))
+        assert.equal(current.log.length, direct.log.filter(log => log.privateTo === undefined || log.privateTo === side).length)
+      }
+      return
+    }
+    assert.fail('Expected a fixed hand containing the test card and the opposing play')
+  })
+}

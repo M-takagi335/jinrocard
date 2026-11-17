@@ -97,6 +97,7 @@ function App() {
   const [showInvestigation, setShowInvestigation] = useState(false)
   const [plays,setPlays]=useState<Play[]>([])
   const [tab,setTab]=useState<'log'|'self'|'enemy'>('log')
+  const [logOpen, setLogOpen] = useState(true)
   const [preview, setPreview] = useState<{ role: Role; action?: { label: string; run: () => void } } | null>(null)
   const [rules,setRules]=useState(false)
   const [,refresh]=useReducer((n:number)=>n+1,0)
@@ -182,6 +183,7 @@ function App() {
     setMatchError('')
     setPlays([])
     setTab('log')
+    setLogOpen(true)
     setDuel(nextDuel)
     closeOverlay()
     window.scrollTo(0, 0)
@@ -440,11 +442,12 @@ function App() {
         </section><aside className="panel chronicle">
           <h2>対戦記録</h2><div className="filters tabs">{([['log','ログ'],['self','自分の捨て札'],['enemy','NPCの捨て札']] as const).map(([k,name])=><button key={k} className={k===tab?'active':''} aria-pressed={tab===k} onClick={()=>setTab(k)}>{name}</button>)}</div>
           {tab === 'log' ? (
+            <details open={logOpen} onToggle={event => setLogOpen(event.currentTarget.open)}><summary>対戦ログ</summary>
             <ol className="log" aria-label="対戦ログ">{duel.log.filter(entry => entry.privateTo !== 1).map((entry, index) => (
               <li key={index}><span>第{entry.night}夜</span>{entry.privateTo === 0 && <em>自分のみ</em>}
                 <CardLog text={entry.text} onInspect={inspect} />
               </li>
-            )).reverse()}</ol>
+            )).reverse()}</ol></details>
           ) : (
             <div className="discard-art">
               <button className="quiet" onClick={() => setOverlay({ type: 'discard', side: tab === 'self' ? 0 : 1 })}>捨て札を拡大</button>

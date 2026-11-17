@@ -13,6 +13,10 @@ import type { Command, OnlineView } from './onlineProtocol.ts'
 import { DeckComposition, Sheet } from './Sheet.tsx'
 
 const activeRoom = 'jinro-online-room'
+const logPreference = (id: string) => 'jinro-online-log:' + id
+function readLogPreference(id: string | null) {
+  try { return !id || sessionStorage.getItem(logPreference(id)) !== 'closed' } catch { return true }
+}
 const getRoom = () => { try { return localStorage.getItem(activeRoom) } catch { return null } }
 function remember(id: string | null) {
   try { if (id) localStorage.setItem(activeRoom, id); else localStorage.removeItem(activeRoom) } catch { /* unavailable */ }
@@ -58,6 +62,7 @@ export default function OnlineMatch({ options, onClose }: { options: MatchDeck[]
   const [error, setError] = useState('')
   const [syncError, setSyncError] = useState('')
   const [feedback, setFeedback] = useState('')
+  const [logOpen, setLogOpen] = useState(() => readLogPreference(getRoom()))
   const [busy, setBusy] = useState(false)
   const [retry, setRetry] = useState<PendingRequest | null>(null)
   const [degraded, setDegraded] = useState(false)
@@ -72,7 +77,6 @@ export default function OnlineMatch({ options, onClose }: { options: MatchDeck[]
   const writeInFlight = useRef(false)
   const refreshing = useRef(false)
   const refreshQueued = useRef(false)
-  const refreshFailures = useRef(0)
   const closedRooms = useRef(new Set<string>())
   const game = room?.game
   const prompt = game?.phase === 'choice' ? game.prompt : null
@@ -90,12 +94,11 @@ export default function OnlineMatch({ options, onClose }: { options: MatchDeck[]
   const accept = useCallback((update: OnlineView) => {
     if (closedRooms.current.has(update.id)) return
     setRoom(previous => previous?.id === update.id && previous.revision > update.revision ? previous : update)
-    refreshFailures.current = 0
     setDegraded(false)
   }, [])
 
   const reload = useCallback(async () => {
-    if (!client || !connectedRoom || closedRooms.current.has(connectedRoom) || refreshFailures.current >= 3) return
+    if (!client || !connectedRoom || closedRooms.current.has(connectedRoom)) return
     if (refreshing.current) {
       refreshQueued.current = true
       return
@@ -117,7 +120,6 @@ export default function OnlineMatch({ options, onClose }: { options: MatchDeck[]
         setRetry(null)
         setError(failure.message)
       } else {
-        refreshFailures.current++
         setDegraded(true)
       }
       setSyncError(failure instanceof Error ? failure.message : '通信エラーです。')
@@ -129,7 +131,9 @@ export default function OnlineMatch({ options, onClose }: { options: MatchDeck[]
       }
     }
   }, [client, connectedRoom, accept])
-  const reconnect = useCallback(() => { refreshFailures.current = 0; void reload() }, [reload])
+  const reconnect = reload
+
+  useEffect(() => { setLogOpen(readLogPreference(connectedRoom)) }, [connectedRoom])
 
   useEffect(() => () => client?.dispose(), [client])
   useEffect(() => {
@@ -181,7 +185,7 @@ export default function OnlineMatch({ options, onClose }: { options: MatchDeck[]
         clearInvite()
         onClose()
       } else {
-        closedRooms.current.delete(update.id)
+        if (closedRooms.current.has(update.id)) return
         accept(update)
         remember(update.id)
         setConnectedRoom(update.id)
@@ -222,6 +226,17 @@ export default function OnlineMatch({ options, onClose }: { options: MatchDeck[]
   function toggle(id: number) {
     setPlays(previous => previous.some(play => play.id === id)
       ? previous.filter(play => play.id !== id) : previous.length < (game?.max ?? 0) ? [...previous, { id }] : previous)
+  }
+  async function copy(text: string, label: string) {
+    if (!text) return
+    setError('')
+    setFeedback('')
+    try {
+      await navigator.clipboard.writeText(text)
+      setFeedback(label + 'をコピーしました。')
+    } catch {
+      setError(label + 'をコピーできませんでした。入力欄を長押し、または選択してコピーしてください。')
+    }
   }
   const blocked = busy || degraded || retry !== null
   const canEdit = !room || room.phase === 'lobby' && !room.left.some(Boolean) && !room.ready[room.side]
@@ -275,17 +290,14 @@ export default function OnlineMatch({ options, onClose }: { options: MatchDeck[]
         </>}
         {!room && connectedRoom && <p role="status">ルームに再接続中…</p>}
         {room && <>
-          <p>ルームコード <strong>{room.code}</strong></p>
           <div className="online-form">
+            <label htmlFor="room-code">ルームコード</label>
+            <input id="room-code" readOnly value={room.code} />
             <label htmlFor="invite-url">招待URL</label>
             <input id="invite-url" readOnly value={invite} />
             <div className="online-actions">
-              <button className="quiet" onClick={async () => {
-                try {
-                  await navigator.clipboard.writeText(invite)
-                  setFeedback('招待URLをコピーしました。')
-                } catch { setFeedback('招待URLを選択してコピーしてください。') }
-              }}>URLをコピー</button>
+              <button className="quiet" disabled={!room.code} onClick={() => void copy(room.code, 'ルームコード')}>コードをコピー</button>
+              <button className="quiet" disabled={!invite} onClick={() => void copy(invite, '招待URL')}>招待URLをコピー</button>
               {navigator.share && <button className="quiet" onClick={() => void navigator.share({ title: '人狼デュエル', url: invite }).catch(() => {})}>共有</button>}
             </div>
           </div>
@@ -359,7 +371,11 @@ export default function OnlineMatch({ options, onClose }: { options: MatchDeck[]
         {game.phase === 'finished' && <div className="result" role="status">
           <h2>{game.winner === 'draw' ? '引き分け' : game.winner === room.side ? 'あなたの勝利' : '相手の勝利'}</h2><p>{game.reason}</p>
         </div>}
-      </section><aside className="panel online-log"><details><summary>対戦ログ</summary>
+      </section><aside className="panel online-log"><details open={logOpen} onToggle={event => {
+        const open = event.currentTarget.open
+        setLogOpen(open)
+        try { sessionStorage.setItem(logPreference(room.id), open ? 'open' : 'closed') } catch { /* unavailable */ }
+      }}><summary>対戦ログ</summary>
         <ol className="log">{[...game.log].reverse().map((entry, index) => <li key={index}><span>第{entry.night}夜</span>{entry.text}</li>)}</ol>
       </details></aside></div>
     </section>}

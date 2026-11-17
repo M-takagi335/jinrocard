@@ -45,13 +45,14 @@ export const PROFILES = {
     roleWeights: { medium: 2, keeper: 1.6, mason: 1.5 },
   },
   random: {
-    label: '完全ランダム型', description: 'すべての役職からランダムに採用',
+    label: '完全ランダム型', description: '全役職から抽選。襲撃カードを最低5枚採用',
     minimums: [],
     weights: {},
   },
 } satisfies Record<string, Profile>
 export type DeckType = keyof typeof PROFILES
 export const DECK_TYPES = Object.keys(PROFILES) as DeckType[]
+const raidRoles: readonly Role[] = ['wolf', 'dire', 'fox']
 
 export function generateDeck(type: DeckType, rng = Math.random): Role[] {
   if (!Object.hasOwn(PROFILES, type)) throw new Error('デッキタイプが見つかりません。')
@@ -64,8 +65,8 @@ export function generateDeck(type: DeckType, rng = Math.random): Role[] {
   const counts = new Map<Role, number>()
   const deck: Role[] = []
 
-  function pick(category?: Category) {
-    const candidates = ROLES.flatMap(role => {
+  function pick(category?: Category, pool: readonly Role[] = ROLES) {
+    const candidates = pool.flatMap(role => {
       const spec = card(role)
       if ((category && spec.category !== category) || (counts.get(role) ?? 0) >= spec.limit) return []
       return [{ role, weight: (weights[spec.category] ?? 1) * (roleWeights?.[role] ?? 1) }]
@@ -85,6 +86,9 @@ export function generateDeck(type: DeckType, rng = Math.random): Role[] {
     throw new Error('カードの抽選に失敗しました。')
   }
 
+  if (type === 'random') {
+    for (let index = 0; index < 5; index++) pick(undefined, raidRoles)
+  }
   for (const [category, minimum] of minimums) {
     for (let index = 0; index < minimum; index++) pick(category)
   }

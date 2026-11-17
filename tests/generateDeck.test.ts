@@ -1,12 +1,33 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { card, validDeck } from '../src/cards.ts'
+import { card, ROLES, validDeck } from '../src/cards.ts'
 import { Duel } from '../src/duel.ts'
 import { DECK_TYPES, PROFILES, generateDeck, generateDecks } from '../src/generateDeck.ts'
 
 function seeded(seed: number) {
   return () => (seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0) / 2 ** 32
 }
+
+test('1,500 complete-random decks meet the raid floor and exercise every role', () => {
+  const rng = seeded(415)
+  const seen = new Set<string>()
+  const signatures = new Set<string>()
+  const raids = new Set(['wolf', 'dire', 'fox'])
+  const raidMixes = new Set<string>()
+  for (let trial = 0; trial < 1500; trial++) {
+    const deck = generateDeck('random', rng)
+    assert.equal(deck.length, 20)
+    assert.ok(validDeck(deck))
+    const attacks = deck.filter(role => raids.has(role))
+    assert.ok(attacks.length >= 5)
+    raidMixes.add(attacks.sort().join(','))
+    signatures.add([...deck].sort().join(','))
+    deck.forEach(role => seen.add(role))
+  }
+  assert.ok(signatures.size >= 1490)
+  assert.ok(raidMixes.size >= 5)
+  assert.deepEqual([...seen].sort(), [...ROLES].sort())
+})
 
 test('all generator types make valid variable decks and satisfy their minimum categories', () => {
   const rng = seeded(29)
