@@ -2,6 +2,7 @@ import { card, ROLES, RULES, validDeck, type Role } from './cards.ts'
 import type { NamedDeck } from './decks.ts'
 
 type Category = ReturnType<typeof card>['category']
+const randomRaidMinimum = 3
 type Profile = {
   label: string
   description: string
@@ -45,7 +46,7 @@ export const PROFILES = {
     roleWeights: { medium: 2, keeper: 1.6, mason: 1.5 },
   },
   random: {
-    label: '完全ランダム型', description: '全役職から抽選。襲撃カードを最低5枚採用',
+    label: '完全ランダム型', description: `全役職から抽選。襲撃カードを最低${randomRaidMinimum}枚採用`,
     minimums: [],
     weights: {},
   },
@@ -87,7 +88,7 @@ export function generateDeck(type: DeckType, rng = Math.random): Role[] {
   }
 
   if (type === 'random') {
-    for (let index = 0; index < 5; index++) pick(undefined, raidRoles)
+    for (let index = 0; index < randomRaidMinimum; index++) pick(undefined, raidRoles)
   }
   for (const [category, minimum] of minimums) {
     for (let index = 0; index < minimum; index++) pick(category)

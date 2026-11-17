@@ -19,7 +19,7 @@ test('1,500 complete-random decks meet the raid floor and exercise every role', 
     assert.equal(deck.length, 20)
     assert.ok(validDeck(deck))
     const attacks = deck.filter(role => raids.has(role))
-    assert.ok(attacks.length >= 5)
+    assert.ok(attacks.length >= 3)
     raidMixes.add(attacks.sort().join(','))
     signatures.add([...deck].sort().join(','))
     deck.forEach(role => seen.add(role))
