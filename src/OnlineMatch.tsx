@@ -10,6 +10,7 @@ import { DECK_TYPES, PROFILES, generateDeck, type DeckType } from './generateDec
 import { InvestigationPanel } from './InvestigationPanel.tsx'
 import { OnlineError, onlineClient } from './onlineClient.ts'
 import type { Command, OnlineView } from './onlineProtocol.ts'
+import { copyLobbyField, formatRoomCodeInput, isRoomCode } from './roomClipboard.ts'
 import { DeckComposition, Sheet } from './Sheet.tsx'
 
 const activeRoom = 'jinro-online-room'
@@ -27,11 +28,59 @@ function clearInvite() {
   url.searchParams.delete('room')
   history.replaceState(null, '', url)
 }
-const formatCode = (code: string) => code.toUpperCase().replace(/[\s-]/g, '').slice(0, 10)
 type RequestPayload = Record<string, unknown>
 type PendingRequest = [payload: RequestPayload, preparation?: RequestPayload]
 
 type Prompt = NonNullable<NonNullable<OnlineView['game']>['prompt']>
+
+function RoomInvitation({ code }: { code: string }) {
+  const codeField = useRef<HTMLInputElement>(null)
+  const urlField = useRef<HTMLInputElement>(null)
+  const copying = useRef(false)
+  const [feedback, setFeedback] = useState<{ success: boolean; text: string }>()
+  const invite = useMemo(() => {
+    if (!isRoomCode(code)) return ''
+    const url = new URL(location.pathname, location.origin)
+    url.searchParams.set('room', code)
+    return url.href
+  }, [code])
+
+  async function copy(kind: 'code' | 'url', field: HTMLInputElement | null) {
+    if (!field || copying.current) return
+    copying.current = true
+    setFeedback(undefined)
+    const label = kind === 'code' ? 'ルームコード' : '招待URL'
+    const select = () => {
+      field.focus({ preventScroll: true })
+      field.select()
+    }
+    try {
+      const success = await copyLobbyField(kind, field.value, navigator.clipboard, () => {
+        select()
+        return document.execCommand('copy')
+      })
+      if (!success) select()
+      setFeedback({ success, text: success ? label + 'をコピーしました。'
+        : label + 'をコピーできませんでした。選択した文字列を手動でコピーしてください。' })
+    } finally {
+      copying.current = false
+    }
+  }
+
+  return <div className="online-form">
+    <label htmlFor="room-code">ルームコード</label>
+    <input id="room-code" ref={codeField} readOnly value={code} />
+    <label htmlFor="invite-url">招待URL</label>
+    <input id="invite-url" ref={urlField} readOnly value={invite} />
+    <div className="online-actions">
+      <button className="quiet" disabled={!isRoomCode(code)} onClick={() => void copy('code', codeField.current)}>コードをコピー</button>
+      <button className="quiet" disabled={!invite} onClick={() => void copy('url', urlField.current)}>招待URLをコピー</button>
+      {navigator.share && <button className="quiet" disabled={!invite}
+        onClick={() => void navigator.share({ title: '人狼デュエル', url: invite }).catch(() => {})}>共有</button>}
+    </div>
+    {feedback && <p className="notice" role={feedback.success ? 'status' : 'alert'}>{feedback.text}</p>}
+  </div>
+}
 
 function OnlineChoice({ prompt, blocked, onConfirm }: { prompt: Prompt; blocked: boolean; onConfirm: (id: number) => void }) {
   const [selected, setSelected] = useState<number>()
@@ -57,11 +106,10 @@ export default function OnlineMatch({ options, onClose }: { options: MatchDeck[]
   const [client] = useState(() => { try { return onlineClient() } catch { return null } })
   const [room, setRoom] = useState<OnlineView | null>(null)
   const [connectedRoom, setConnectedRoom] = useState(() => new URLSearchParams(location.search).has('room') ? null : getRoom())
-  const [code, setCode] = useState(() => formatCode(new URLSearchParams(location.search).get('room') ?? ''))
+  const [code, setCode] = useState(() => formatRoomCodeInput(new URLSearchParams(location.search).get('room') ?? ''))
   const [mode, setMode] = useState<'create' | 'join'>(() => code ? 'join' : 'create')
   const [error, setError] = useState('')
   const [syncError, setSyncError] = useState('')
-  const [feedback, setFeedback] = useState('')
   const [logOpen, setLogOpen] = useState(() => readLogPreference(getRoom()))
   const [busy, setBusy] = useState(false)
   const [retry, setRetry] = useState<PendingRequest | null>(null)
@@ -84,12 +132,6 @@ export default function OnlineMatch({ options, onClose }: { options: MatchDeck[]
     ?? options.find(deck => deck.id === selected)?.cards ?? STARTER
   const deckMatches = room?.ownDeck?.join(',') === chosen.join(',')
   const opponent = (room ? 1 - room.side : 1) as Side
-  const invite = useMemo(() => {
-    if (!room) return ''
-    const url = new URL(location.pathname, location.origin)
-    url.searchParams.set('room', room.code)
-    return url.href
-  }, [room?.code])
 
   const accept = useCallback((update: OnlineView) => {
     if (closedRooms.current.has(update.id)) return
@@ -169,7 +211,6 @@ export default function OnlineMatch({ options, onClose }: { options: MatchDeck[]
     setBusy(true)
     setError('')
     setSyncError('')
-    setFeedback('')
     try {
       if (preparation) {
         const registered = await client.request(preparation)
@@ -227,17 +268,6 @@ export default function OnlineMatch({ options, onClose }: { options: MatchDeck[]
     setPlays(previous => previous.some(play => play.id === id)
       ? previous.filter(play => play.id !== id) : previous.length < (game?.max ?? 0) ? [...previous, { id }] : previous)
   }
-  async function copy(text: string, label: string) {
-    if (!text) return
-    setError('')
-    setFeedback('')
-    try {
-      await navigator.clipboard.writeText(text)
-      setFeedback(label + 'をコピーしました。')
-    } catch {
-      setError(label + 'をコピーできませんでした。入力欄を長押し、または選択してコピーしてください。')
-    }
-  }
   const blocked = busy || degraded || retry !== null
   const canEdit = !room || room.phase === 'lobby' && !room.left.some(Boolean) && !room.ready[room.side]
   const deckPicker = (
@@ -280,27 +310,18 @@ export default function OnlineMatch({ options, onClose }: { options: MatchDeck[]
             <button className="quiet" disabled={busy} onClick={() => { setMode('join'); setRetry(null); setError('') }}>ルームコードを入力</button>
             {deckPicker}
             <button className="primary" disabled={busy || !!retry} onClick={() => void send({ op: 'create', cards: chosen, request: crypto.randomUUID() })}>このデッキでルームを作成</button>
-          </> : <form className="online-form" onSubmit={event => { event.preventDefault(); if (!busy && !retry && code.length === 10) void send({ op: 'join', code }) }}>
+          </> : <form className="online-form" onSubmit={event => { event.preventDefault(); if (!busy && !retry && isRoomCode(code)) void send({ op: 'join', code }) }}>
             <label htmlFor="invite-code">ルームコード</label>
             <input id="invite-code" autoCapitalize="characters" autoComplete="off" value={code}
-              onChange={event => setCode(formatCode(event.target.value))} />
-            <button className="primary" type="submit" disabled={busy || !!retry || code.length !== 10}>参加する</button>
+              spellCheck={false} onChange={event => setCode(formatRoomCodeInput(event.target.value))} />
+            {code.length >= 10 && !isRoomCode(code) && <p className="hint">ルームコードは英数字10文字です。</p>}
+            <button className="primary" type="submit" disabled={busy || !!retry || !isRoomCode(code)}>参加する</button>
             <button className="quiet" type="button" disabled={busy} onClick={() => { setMode('create'); setRetry(null); setError('') }}>作成画面へ</button>
           </form>}
         </>}
         {!room && connectedRoom && <p role="status">ルームに再接続中…</p>}
         {room && <>
-          <div className="online-form">
-            <label htmlFor="room-code">ルームコード</label>
-            <input id="room-code" readOnly value={room.code} />
-            <label htmlFor="invite-url">招待URL</label>
-            <input id="invite-url" readOnly value={invite} />
-            <div className="online-actions">
-              <button className="quiet" disabled={!room.code} onClick={() => void copy(room.code, 'ルームコード')}>コードをコピー</button>
-              <button className="quiet" disabled={!invite} onClick={() => void copy(invite, '招待URL')}>招待URLをコピー</button>
-              {navigator.share && <button className="quiet" onClick={() => void navigator.share({ title: '人狼デュエル', url: invite }).catch(() => {})}>共有</button>}
-            </div>
-          </div>
+          <RoomInvitation key={room.id + ':' + room.code} code={room.code} />
           <p role="status">{room.left[opponent] ? '相手が退出しました。' : !room.joined ? '相手の参加待ち'
             : !room.connected[opponent] ? '相手は切断中です。' : room.ready[opponent] ? '相手は準備完了' : '相手の準備待ち'}</p>
           {canEdit && deckPicker}
@@ -311,7 +332,6 @@ export default function OnlineMatch({ options, onClose }: { options: MatchDeck[]
             <button className="quiet" disabled={busy} onClick={() => command({ kind: 'leave' })}>ルーム退出</button>
           </div>
         </>}
-        {feedback && <p className="notice" role="status">{feedback}</p>}
         {(error || syncError) && <p className="notice" role="alert">{error || syncError}</p>}
         {(retry || degraded && connectedRoom) && <button className="quiet" disabled={busy} onClick={() => retry ? void send(...retry) : reconnect()}>再試行</button>}
       </Sheet>
