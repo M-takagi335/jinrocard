@@ -17,6 +17,7 @@ import { OnlineError, onlineClient } from './onlineClient.ts'
 import type { Command, OnlineView } from './onlineProtocol.ts'
 import { copyLobbyField, formatRoomCodeInput, isRoomCode } from './roomClipboard.ts'
 import { DeckComposition, Sheet } from './Sheet.tsx'
+import { TyrantLimitNotice } from './TyrantLimitNotice.tsx'
 
 const activeRoom = 'jinro-online-room'
 const logPreference = (id: string) => 'jinro-online-log:' + id
@@ -453,6 +454,7 @@ export default function OnlineMatch({ options, onClose }: { options: MatchDeck[]
         </div>}
         {game.phase === 'select' && (game.locked[room.side] ? <p role="status">確定済み · 相手のカード確定待ち</p> : <>
           <div className="hand-heading"><h2>手札を選択</h2><span>{plays.length} / {game.max}枚</span></div>
+          <TyrantLimitNotice limited={game.max === 1} />
           <p className="hint">{game.locked[opponent] ? '相手は確定済み' : '相手は選択中'}</p>
           <div className="duel-cards hand-cards" aria-label="手札">{game.hand.map(entry => (
             <CardTile compact key={entry.id} role={entry.role} selected={plays.some(play => play.id === entry.id)}

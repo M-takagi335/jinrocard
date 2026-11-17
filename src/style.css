@@ -737,6 +737,21 @@ html:has(.match-contents[open]) {
   min-height: 44px;
   padding-inline: 8px;
 }
+.tyrant-limit-notice {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .2em .75em;
+  margin: .5rem 0;
+  padding: .45rem .65rem;
+  border-inline-start: 3px solid var(--gold);
+  border-radius: 4px;
+  background: #402631;
+  color: var(--ink);
+  font-size: .875rem;
+}
+.tyrant-limit-notice strong {
+  color: var(--gold);
+}
 .match-difficulty {
   min-inline-size: 0;
   margin: 10px 0 0;

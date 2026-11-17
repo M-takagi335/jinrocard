@@ -19,6 +19,40 @@ function started(first: Role[] = STARTER, second: Role[] = STARTER, seed = 11) {
   return { room, word }
 }
 
+test('online nightly max follows the active Tyrant and survives rehydration only for the affected seat', () => {
+  const word = () => 0xffffffff
+  const front = (...roles: Role[]) => {
+    const deck = [...STARTER]
+    for (const role of roles) deck.splice(deck.indexOf(role), 1)
+    return [...roles, ...deck]
+  }
+  for (const disabled of [false, true]) {
+    const room = newRoom(front('hunter', 'tyrant', 'witch'))
+    const command = (side: 0 | 1, value: Parameters<typeof applyCommand>[2]) => applyCommand(room, side, value, true, word)
+    command(1, { kind: 'deck', cards: front('mad', 'hunter', 'witch') })
+    command(0, { kind: 'ready' })
+    command(1, { kind: 'ready' })
+    const play = (side: 0 | 1, ...roles: Role[]) => {
+      const view = gameView(room, side)!
+      command(side, { kind: 'lock', night: view.night, plays: roles.map(role => ({ id: view.hand.find(c => c.role === role)!.id })) })
+    }
+    assert.equal(gameView(room, 1)!.max, 2)
+    play(0, 'hunter', 'tyrant')
+    play(1, disabled ? 'mad' : 'witch')
+    assert.equal(gameView(room, 1)!.revealed[0][1].disabled, disabled)
+    assert.equal(gameView(room, 1)!.max, 2)
+    for (const side of [0, 1] as const) command(side, { kind: 'next', night: 1 })
+    const resumed = structuredClone(room)
+    assert.equal(gameView(resumed, 0)!.max, 2)
+    assert.equal(gameView(resumed, 1)!.max, disabled ? 2 : 1)
+    if (!disabled) assert.throws(() => play(1, 'hunter', 'mad'))
+    play(0, 'witch')
+    play(1, 'hunter')
+    for (const side of [0, 1] as const) command(side, { kind: 'next', night: 2 })
+    assert.equal(gameView(room, 1)!.max, 2)
+  }
+})
+
 test('new Curse rules and in-flight legacy rooms both replay with their original timing', () => {
   const deck = (prefix: Role[]) => [...prefix, ...ROLES.filter(role => !prefix.includes(role))].slice(0, 20)
   const first = deck(['curse', 'wolf', 'wolf'])

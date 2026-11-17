@@ -17,6 +17,7 @@ import { cardsForMatch, generatedMatchType } from './matchDeck.ts'
 import { DeckComposition, Sheet } from './Sheet.tsx'
 import { AssassinPrediction } from './AssassinPrediction.tsx'
 import { Tutorial } from './Tutorial.tsx'
+import { TyrantLimitNotice } from './TyrantLimitNotice.tsx'
 import { HpChanges } from './HpChanges.tsx'
 import { initAudio, playEffects, setMusic } from './audio.ts'
 import { battleTrack } from './soundEvents.ts'
@@ -457,7 +458,7 @@ function App() {
         <div className="battle-layout"><section className="panel play-area">
           {pending && !showInvestigation && <p ref={insightCue} className="insight-cue" role="status">{pending.kind === 'seer' ? '占い師が相手の手札を透視！' : '預言者が相手の山札を透視！'}</p>}
           {duel.revealed.some(row=>row.length>0)&&<div className={'reveal '+(phase==='reveal'?'flipping':'')} aria-label="同時公開"><div className="eyebrow">✦　同時公開</div><div className="reveal-columns">{duel.revealed.map((row,i)=><div key={i}><h3>{i===0?'あなた':'NPC'}</h3><div className="duel-cards">{row.map(c=><CardTile compact role={c.role} key={c.id} onInspect={() => inspect(c.role)} glowing={i===0 && pending?.kind===c.role && pending.sourceId===c.id && !showInvestigation} disabled={c.disabled} recoveryBlocked={c.recoveryBlocked} detail={c.guess?'予想：'+card(c.guess).name:undefined}/>)}{!row.length&&<p>パス</p>}</div></div>)}</div></div>}
-          {phase==='select'&&<><div className="hand-heading"><h2>手札を選択</h2><span>{plays.length} / {duel.max(0)} 枚</span></div><p className="hint">{duel.players[0].hand.length?'カードをタップすると詳細が見れます。選択後に確定すると同時公開します。':'手札がないため、この夜はパスします。'}</p><div className="duel-cards hand-cards" aria-label="手札">{duel.players[0].hand.map(c => {
+          {phase==='select'&&<><div className="hand-heading"><h2>手札を選択</h2><span>{plays.length} / {duel.max(0)} 枚</span></div><TyrantLimitNotice limited={duel.players[0].status.limited} /><p className="hint">{duel.players[0].hand.length?'カードをタップすると詳細が見れます。選択後に確定すると同時公開します。':'手札がないため、この夜はパスします。'}</p><div className="duel-cards hand-cards" aria-label="手札">{duel.players[0].hand.map(c => {
               const selected = plays.some(play => play.id === c.id)
               return <CardTile compact key={c.id} role={c.role} selected={selected} onClick={() => toggle(c)}
                 onInspect={() => inspect(c.role, selected || plays.length < duel.max(0)

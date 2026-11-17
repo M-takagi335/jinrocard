@@ -3,6 +3,7 @@ import { RULES, type Role } from './cards.ts'
 import { CardDetail } from './CardDetail.tsx'
 import { CardTile } from './CardTile.tsx'
 import { HpChanges } from './HpChanges.tsx'
+import { TyrantLimitNotice } from './TyrantLimitNotice.tsx'
 import { InvestigationPanel } from './InvestigationPanel.tsx'
 import { playEffects } from './audio.ts'
 import { localSoundFrame, useDuelSound } from './useDuelSound.ts'
@@ -95,6 +96,7 @@ export function Tutorial({ onHome }: { onHome: () => void }) {
       <section className="panel play-area">
         {selecting ? <>
           <div className="hand-heading"><h2>手札を選択</h2><span>{selected.length} / {duel.max(0)} 枚</span></div>
+          <TyrantLimitNotice limited={duel.players[0].status.limited} />
           <div className={'duel-cards hand-cards' + (required ? ' tutorial-guided' : '')} aria-label="手札">
             {duel.players[0].hand.map(entry => {
               const allowed = !required || required.includes(entry.role)
