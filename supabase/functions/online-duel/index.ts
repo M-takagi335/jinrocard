@@ -26,7 +26,7 @@ function view(row: Row, side: Side): OnlineView {
   return { id: row.id, code: row.code, revision: row.revision, side, phase: state.phase,
     joined: row.guest_id !== null, ready: state.ready, left: state.left,
     connected: [!state.left[0] && fresh(row.host_seen), !state.left[1] && fresh(row.guest_seen)],
-    ownDeck: state.decks[side], game: gameView(state, side) }
+    ownDeck: state.decks[side], rulesVersion: state.version, game: gameView(state, side) }
 }
 function live(row: Row) {
   if (Date.parse(row.expires_at) <= Date.now()) return false

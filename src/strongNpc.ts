@@ -76,14 +76,14 @@ function predict(view: StrongNpcView, rng: () => number): Scenario[] {
 
 type Effects = {
   raid: number; special: number; recoil: number; shield: number; blocksRaid: boolean
-  trap: number; cat: number; heal: number; merchant: number; supplies: number; future: number
+  trap: number; cat: number; heal: number; blocksHealing: boolean; merchant: number; supplies: number; future: number
 }
 
 // A compact one-night projection. Only the engine resolves the actual effects.
 function project(roles: readonly Role[], guess: Role | undefined, enemy: readonly Role[], hp: number,
-  noHeal: boolean, hasDiscard: boolean, enemyHasWitch: boolean, maxHp: number) {
+  noHeal: boolean, hasDiscard: boolean, maxHp: number) {
   const result: Effects = { raid: 0, special: 0, recoil: 0, shield: 0, blocksRaid: false,
-    trap: 0, cat: 0, heal: 0, merchant: 0, supplies: 0, future: 0 }
+    trap: 0, cat: 0, heal: 0, blocksHealing: false, merchant: 0, supplies: 0, future: 0 }
   const enemyAttacks = enemy.some(role => card(role).category === 'attack')
   for (const role of roles) {
     const spec = card(role)
@@ -104,7 +104,7 @@ function project(roles: readonly Role[], guess: Role | undefined, enemy: readonl
       case 'mason': result.supplies += spec.power! - 1; break
       case 'medium': if (hasDiscard) result.supplies += 1; break
       case 'keeper': if (hasDiscard) result.future += .55; break
-      case 'curse': if (enemyHasWitch) result.future += .8; break
+      case 'curse': result.blocksHealing = true; break
       case 'tyrant': result.future += 1.1; break
       case 'seer': case 'prophet': result.future += hp < maxHp ? .12 : .18; break
     }
@@ -129,8 +129,8 @@ function healthAfter(a: Effects, b: Effects, hp: number, enemyHp: number, maxHp:
   const own = Math.max(0, hp - ownHit - ownCounter - a.recoil)
   const enemy = Math.max(0, enemyHp - enemyHit - enemyCounter - b.recoil)
   if (!own || !enemy) return [own, enemy] as const
-  return [Math.max(0, Math.min(maxHp, own + a.heal) - a.merchant),
-    Math.max(0, Math.min(maxHp, enemy + b.heal) - b.merchant)] as const
+  return [Math.max(0, Math.min(maxHp, own + (b.blocksHealing ? 0 : a.heal)) - a.merchant),
+    Math.max(0, Math.min(maxHp, enemy + (a.blocksHealing ? 0 : b.heal)) - b.merchant)] as const
 }
 
 export function chooseStrongNpc(view: StrongNpcView, rng: () => number): Play[] {
@@ -148,8 +148,6 @@ export function chooseStrongNpc(view: StrongNpcView, rng: () => number): Play[] 
   const lastNight = view.night >= view.finalNight
   const trailing = view.hp < view.enemyHp
   const late = clamp(1 - (view.finalNight - view.night) / 5, 0, 1)
-  const ownHasWitch = view.ownRemaining.some(entry => entry.role === 'witch')
-  const enemyHasWitch = view.enemyRemaining.some(entry => entry.role === 'witch')
   const ownHasDiscard = view.discard.length > 0
   const enemyHasDiscard = view.enemyDiscard.length > 0
   let best = -Infinity
@@ -161,9 +159,9 @@ export function chooseStrongNpc(view: StrongNpcView, rng: () => number): Play[] 
       let sum = 0
       for (const scenario of scenarios) {
         const ours = project(enabled(roles, scenario.roles, scenario.cancel, 0), guess, scenario.roles,
-          view.hp, view.noHeal, ownHasDiscard, enemyHasWitch, view.maxHp)
+          view.hp, view.noHeal, ownHasDiscard, view.maxHp)
         const theirs = project(enabled(scenario.roles, roles, scenario.cancel, 2), scenario.guess, roles,
-          view.enemyHp, view.enemyNoHeal, enemyHasDiscard, ownHasWitch, view.maxHp)
+          view.enemyHp, view.enemyNoHeal, enemyHasDiscard, view.maxHp)
         const [hp, enemyHp] = healthAfter(ours, theirs, view.hp, view.enemyHp, view.maxHp)
         const difference = hp - enemyHp
         if (!hp || !enemyHp || lastNight) {

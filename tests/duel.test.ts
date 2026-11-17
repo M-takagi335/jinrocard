@@ -90,24 +90,50 @@ test('mad cancels a deterministic target and does nothing against a single card'
   B.play()
   assert.equal(B.game.players[0].hp,17)
 })
-test('next night status limits NPC selection and blocks healing, then expires',()=>{
+test('Tyrant limits NPC selection only on the next night',()=>{
   const {game,play}=rig(['tyrant'],['witch','wolf'])
-  // A curse can be in either player's deck; replace its instance for this fixture.
-  game.players[0].hand[1].role='curse'
-  assert.equal(game.lock(game.players[0].hand.slice(0,2).map(c=>({id:c.id}))),true)
-  game.resolve()
+  play()
   assert.equal(game.max(1),2)
   game.nextNight()
   assert.equal(game.max(1),1)
-  assert.equal(game.players[1].status.noHeal,true)
-  game.players[1].hp=12
-  game.players[1].hand[0].role='witch'
   play()
-  assert.equal(game.players[1].hp,9)
-  assert.ok(game.log.some(l=>l.text.includes('回復は呪術師に無効化')))
   game.nextNight()
   assert.equal(game.max(1),2)
-  assert.equal(game.players[1].status.noHeal,false)
+})
+
+test('Curse blocks Witch this night, including alongside a successfully defended raid', () => {
+  const { game } = rig(['wolf'], ['witch', 'hunter'])
+  game.players[0].hand[1].role = 'curse'
+  game.players[1].hp = 16
+  assert.ok(game.lock(game.players[0].hand.slice(0,2).map(({ id }) => ({ id }))))
+  game.resolve()
+  assert.equal(game.players[1].hp, 16)
+  assert.deepEqual(game.nightHpChange(1), { lost: 0, gained: 0 })
+  assert.ok(game.log.some(event => event.text.includes('狩人が襲撃を防いだ')))
+  assert.ok(game.log.some(event => event.text.includes('回復は呪術師に無効化')))
+})
+
+test('two Curses do not extend into the next night and produce no blocked-heal log when there is no Witch', () => {
+  const { game } = rig(['wolf'], ['hunter'])
+  for (const entry of game.players[0].hand.slice(0, 2)) entry.role = 'curse'
+  assert.ok(game.lock(game.players[0].hand.slice(0,2).map(({ id }) => ({ id }))))
+  game.resolve()
+  assert.equal(game.log.some(event => event.text.includes('回復は呪術師に無効化')), false)
+  game.players[1].hand[0].role = 'witch'
+  game.players[1].hp = 16
+  assert.ok(game.nextNight())
+  assert.ok(game.lock([{ id: game.players[0].hand.find(entry => entry.role === 'hunter')!.id }]))
+  game.resolve()
+  assert.deepEqual(game.nightHpChange(1), { lost: 0, gained: 4 })
+})
+
+test('Mad disables Curse before the Witch can heal', () => {
+  const { game } = rig(['wolf'], ['witch', 'mad'])
+  game.players[0].hand[1].role = 'curse'
+  assert.ok(game.lock(game.players[0].hand.slice(0,2).map(({ id }) => ({ id }))))
+  game.resolve()
+  assert.equal(game.revealed[0][1].disabled, true)
+  assert.deepEqual(game.nightHpChange(1), { lost: 3, gained: 3 })
 })
 test('recovery excludes currently played cards and preserves instance identity',()=>{
   for(const role of ['medium','keeper'] as const){

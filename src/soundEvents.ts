@@ -28,7 +28,7 @@ function resolvedEffects(log: readonly LogEntry[], night: number) {
     // The engine logs both normal draws first. Later draws are card effects.
     if (draw && (++normalDraws > 2 && Number(draw[1]) > 0)) active.add('special')
     if (/が確認：.+/.test(text) && !text.endsWith('対象なし') ||
-      /を無効化した。$|は次の夜に(?:回復できない|1枚までしか出せない)。$|を(?:手札|山札の一番上)に戻した。$/.test(text)) active.add('special')
+      /を無効化した。$|回復は呪術師に無効化された。$|は次の夜に(?:回復できない|1枚までしか出せない)。$|を(?:手札|山札の一番上)に戻した。$/.test(text)) active.add('special')
   }
   return active
 }

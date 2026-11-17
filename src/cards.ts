@@ -20,7 +20,7 @@ const CARD_DEFINITIONS = {
   mason: { name:'共有者', category:'supply', limit:2, icon:'絆', power:2, text:'カードを2枚引き、手札から1枚選んで捨てる。' },
   merchant: { name:'商人', category:'supply', limit:2, icon:'貨', power:3, recoil:2, text:'HPを2失い、3枚引く。HPが0になると敗北。' },
   mad: { name:'狂人', category:'hex', limit:2, icon:'乱', text:'相手が2枚出した場合、そのうちランダムに1枚の効果を無効化。' },
-  curse: { name:'呪術師', category:'hex', limit:2, icon:'呪', text:'相手の次の夜のHP回復を無効化。' },
+  curse: { name:'呪術師', category:'hex', limit:2, icon:'呪', text:'相手のこの夜のHP回復を無効化。' },
   tyrant: { name:'独裁者', category:'hex', limit:1, icon:'冠', text:'相手が次の夜に出せるカードを最大1枚に制限。' },
 } satisfies Record<string, Spec>
 export type Role = keyof typeof CARD_DEFINITIONS
@@ -49,7 +49,7 @@ export const CARD_SUMMARY: Record<Role, string> = {
   mason: '2枚引き、手札を1枚捨てる',
   merchant: 'HPを2失い、生存なら3枚引く',
   mad: '相手が2枚出せばランダムに1枚無効',
-  curse: '相手の次の夜の回復を無効',
+  curse: '相手のこの夜の回復を無効',
   tyrant: '相手は次の夜に1枚まで',
 }
 export const ROLES = Object.keys(CARDS) as Role[]

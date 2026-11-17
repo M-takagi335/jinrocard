@@ -35,7 +35,7 @@ function composition(roles: readonly Role[]): readonly DeckEntry[] {
 export type NpcView = { hand: readonly Instance[]; hp:number; enemyHp:number; max:number; noHeal:boolean; discard:readonly Instance[]; enemyDiscard:readonly Instance[]; enemyDeck:readonly DeckEntry[]; enemyRemaining:readonly DeckEntry[] }
 type Config = { hp:number; deckSize:number; opening:number; nightlyDraw:number; handRefill:number; handLimit:number; maxPlays:number; finalNight:number; finalTieBreak:'hp'|'draw' }
 type IntelDraw = Readonly<Partial<Record<'seer' | 'prophet', number>>>
-type Options = { rng?:()=>number; rules?:Partial<Config>; npc?: (view:NpcView)=>Play[]; intelDraw?: IntelDraw; npcDifficulty?: NpcDifficulty; twoHumans?: boolean }
+type Options = { rng?:()=>number; rules?:Partial<Config>; npc?: (view:NpcView)=>Play[]; intelDraw?: IntelDraw; npcDifficulty?: NpcDifficulty; twoHumans?: boolean; legacyCurse?: boolean }
 export function shuffle<T>(input:readonly T[], rng:()=>number): T[] {
   const a = [...input]
   for(let i=a.length-1;i>0;i--) { const j=Math.floor(rng()*(i+1)); [a[i],a[j]]=[a[j],a[i]] }
@@ -66,6 +66,7 @@ export class Duel {
   readonly rules: Config
   readonly npcDifficulty: NpcDifficulty
   private readonly twoHumans: boolean
+  private readonly legacyCurse: boolean
   private readonly investigations: [InvestigationSnapshot[], InvestigationSnapshot[]] = [[], []]
   private readonly revisions = [0, 0]
   private hpChanges: [HpChange, HpChange] = [{ lost: 0, gained: 0 }, { lost: 0, gained: 0 }]
@@ -94,6 +95,7 @@ export class Duel {
     this.intelDraw = { ...options.intelDraw }
     this.npcDifficulty = options.npcDifficulty ?? 'standard'
     this.twoHumans = options.twoHumans ?? false
+    this.legacyCurse = options.legacyCurse ?? false
     this.npc = options.npc ?? (this.npcDifficulty === 'strong'
       ? view => chooseStrongNpc(this.withPublicContext(1, view), this.rng)
       : view => chooseNpc(view, this.rng))
@@ -312,7 +314,7 @@ export class Duel {
     const count=(i:Side,r:Role)=>active[i].filter(c=>c.role===r).length
     for(const i of sides) {
       const p=this.players[other(i)]
-      if(count(i,'curse')) { p.next.noHeal=true; this.write(who[other(i)]+'は次の夜に回復できない。') }
+      if(this.legacyCurse && count(i,'curse')) { p.next.noHeal=true; this.write(who[other(i)]+'は次の夜に回復できない。') }
       if(count(i,'tyrant')) { p.next.limited=true; this.write(who[other(i)]+'は次の夜に1枚までしか出せない。') }
     }
     const shield=sides.map(i=>count(i,'knight')*card('knight').power!)
@@ -357,7 +359,7 @@ export class Duel {
 
     for(const i of sides) if(count(i,'witch')) {
       const p=this.players[i]
-      if(p.status.noHeal) this.write(who[i]+'の回復は呪術師に無効化された。')
+      if(p.status.noHeal || (!this.legacyCurse && count(other(i),'curse'))) this.write(who[i]+'の回復は呪術師に無効化された。')
       else {
         const gained = this.changeHp(i, count(i, 'witch') * card('witch').power!)
         this.write(who[i]+'はHPを'+gained+'回復した。')

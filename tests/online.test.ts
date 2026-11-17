@@ -19,6 +19,42 @@ function started(first: Role[] = STARTER, second: Role[] = STARTER, seed = 11) {
   return { room, word }
 }
 
+test('new Curse rules and in-flight legacy rooms both replay with their original timing', () => {
+  const deck = (prefix: Role[]) => [...prefix, ...ROLES.filter(role => !prefix.includes(role))].slice(0, 20)
+  const first = deck(['curse', 'wolf', 'wolf'])
+  const second = deck(['witch', 'witch', 'hunter'])
+  const word = () => 0xffffffff
+  const room = newRoom(first)
+  assert.equal(room.version, 2)
+  // A room created earlier but not yet started adopts the current version.
+  room.version = 1
+  applyCommand(room, 1, { kind: 'deck', cards: second }, true, word)
+  applyCommand(room, 0, { kind: 'ready' }, true, word)
+  applyCommand(room, 1, { kind: 'ready' }, true, word)
+  assert.equal(room.version, 2)
+  for (const version of [1, 2] as const) {
+    const live = { ...structuredClone(room), version }
+    const play = (side: 0 | 1, ...roles: Role[]) => {
+      const view = gameView(live, side)!
+      const plays = roles.map(role => ({ id: view.hand.find(entry => entry.role === role)!.id }))
+      applyCommand(live, side, { kind: 'lock', night: view.night, plays }, true, word)
+    }
+    const before = gameView(live, 1)!
+    play(0, 'curse', 'wolf')
+    assert.deepEqual(gameView(live, 1), { ...before, locked: [true, false] })
+    play(1, 'witch')
+    const firstView = gameView(live, 1)!
+    assert.deepEqual(firstView.players[1].hpChange, { lost: 3, gained: version === 1 ? 3 : 0 })
+    assert.deepEqual(gameView(JSON.parse(JSON.stringify(live)), 1), firstView)
+    for (const side of [0, 1] as const) applyCommand(live, side, { kind: 'next', night: 1 }, true, word)
+    play(0, 'wolf')
+    play(1, 'witch')
+    const secondView = gameView(live, 1)!
+    assert.deepEqual(secondView.players[1].hpChange, { lost: 3, gained: version === 1 ? 0 : 4 })
+    assert.deepEqual(gameView(JSON.parse(JSON.stringify(live)), 1), secondView)
+  }
+})
+
 test('online validates decks and redacts locks, IDs, private cards and entropy across reloads', () => {
   assert.throws(() => newRoom(Array(20).fill('wolf')))
   assert.throws(() => parseCommand({ kind: 'deck', cards: STARTER.slice(1) }))

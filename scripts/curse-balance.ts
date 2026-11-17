@@ -1,20 +1,30 @@
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { execFileSync } from 'node:child_process'
 import { stripTypeScriptTypes } from 'node:module'
 import { card, STARTER, validDeck, type Role } from '../src/cards.ts'
 import { chooseNpc, type Duel, type Side } from '../src/duel.ts'
-import { chooseStrongNpc } from '../src/strongNpc.ts'
+import type { chooseStrongNpc as StrongPolicy } from '../src/strongNpc.ts'
 import { promptRank, random } from './balance.ts'
 
-const engineUrl = new URL('../src/duel.ts', import.meta.url)
-const engineSource = readFileSync(engineUrl, 'utf8')
+const baseline = 'add88d39dfc1e1234c963b57496655455f9fcad9'
+function historicalSource(file: string) {
+  const url = new URL('../src/' + file, import.meta.url)
+  return execFileSync('git', ['show', baseline + ':src/' + file], { encoding: 'utf8' })
+    .replace(/from '(\.\/[^']+)'/g, (_, path: string) => "from '" + new URL(path, url).href + "'")
+}
+async function isolatedModule<T>(source: string): Promise<T> {
+  const code = stripTypeScriptTypes(source, { mode: 'strip' })
+  return await import('data:text/javascript;base64,' + Buffer.from(code).toString('base64')) as T
+}
+const engineSource = historicalSource('duel.ts')
+const { chooseStrongNpc } = await isolatedModule<{ chooseStrongNpc: typeof StrongPolicy }>(historicalSource('strongNpc.ts'))
 function replaceOnce(source: string, target: string, replacement: string) {
   assert.equal(source.split(target).length, 2, 'Engine implementation changed: ' + target)
   return source.replace(target, replacement)
 }
 async function engine(timing: 'A' | 'B') {
   // Evaluate a separate copy for this script only. Preserve the engine's order, RNG and public views.
-  let source = engineSource.replace(/from '(\.\/[^']+)'/g, (_, path: string) => "from '" + new URL(path, engineUrl).href + "'")
+  let source = engineSource
   if (timing === 'B') source = replaceOnce(source, 'p.next.noHeal=true', 'p.status.noHeal=true')
   const blocked = "if(p.status.noHeal) this.write(who[i]+'の回復は呪術師に無効化された。')"
   source = replaceOnce(source, blocked, `if(p.status.noHeal) {
@@ -22,8 +32,7 @@ async function engine(timing: 'A' | 'B') {
     this.write('curse-balance:' + i + ':' + count(i,'witch') + ':' +
       Math.min(this.rules.hp-p.hp,count(i,'witch')*card('witch').power!))
   }`)
-  const code = stripTypeScriptTypes(source, { mode: 'strip' })
-  return (await import('data:text/javascript;base64,' + Buffer.from(code).toString('base64')) as { Duel: typeof Duel }).Duel
+  return (await isolatedModule<{ Duel: typeof Duel }>(source)).Duel
 }
 
 const variants = { A: await engine('A'), B: await engine('B') }
