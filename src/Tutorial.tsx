@@ -3,6 +3,8 @@ import { card, RULES, type Role } from './cards.ts'
 import { CardDetail } from './CardDetail.tsx'
 import { CardTile } from './CardTile.tsx'
 import { HpChanges } from './HpChanges.tsx'
+import { playEffects } from './audio.ts'
+import { localSoundFrame, useDuelSound } from './useDuelSound.ts'
 import type { Instance } from './duel.ts'
 import { canConfirmTutorial, createTutorialDuel, guidedRoles, lockTutorialNight } from './tutorial.ts'
 
@@ -22,6 +24,7 @@ export function Tutorial({ onHome }: { onHome: () => void }) {
   const [complete, setComplete] = useState(false)
   const fighters = useRef<HTMLDivElement>(null)
   const [, refresh] = useReducer((value: number) => value + 1, 0)
+  useDuelSound(duel, localSoundFrame(duel, false), true)
   const selecting = duel.phase === 'select'
   const revealed = duel.phase === 'reveal'
   const step = duel.night === 1 ? Number(!selecting) : duel.night
@@ -33,12 +36,16 @@ export function Tutorial({ onHome }: { onHome: () => void }) {
   const investigation = duel.investigationsFor(0).find(record => record.night === duel.night)
 
   function toggle(entry: Instance) {
-    setSelected(previous => previous.includes(entry.id) ? previous.filter(id => id !== entry.id)
-      : previous.length < duel.max(0) ? [...previous, entry.id] : previous)
+    if (selected.includes(entry.id)) setSelected(selected.filter(id => id !== entry.id))
+    else if (selected.length < duel.max(0)) {
+      setSelected([...selected, entry.id])
+      playEffects(['select'])
+    }
   }
 
   function confirm() {
     if (!lockTutorialNight(duel, plays)) return
+    playEffects(['confirm'])
     setSelected([])
     if (duel.night > 1) resolve()
     else refresh()

@@ -17,6 +17,10 @@ import { DeckComposition, Sheet } from './Sheet.tsx'
 import { AssassinPrediction } from './AssassinPrediction.tsx'
 import { Tutorial } from './Tutorial.tsx'
 import { HpChanges } from './HpChanges.tsx'
+import { initAudio, playEffects, setMusic } from './audio.ts'
+import { battleTrack } from './soundEvents.ts'
+import { SoundSettings } from './SoundSettings.tsx'
+import { localSoundFrame, useDuelSound } from './useDuelSound.ts'
 import './style.css'
 import './card-art.css'
 
@@ -104,9 +108,14 @@ function App() {
   const [logOpen, setLogOpen] = useState(true)
   const [preview, setPreview] = useState<{ role: Role; action?: { label: string; run: () => void } } | null>(null)
   const [rules,setRules]=useState(false)
+  const [soundSettings, setSoundSettings] = useState(false)
   const [,refresh]=useReducer((n:number)=>n+1,0)
   useEffect(()=>{try{localStorage.setItem('jinro-deck',JSON.stringify(deck))}catch{/* unavailable */}},[deck])
   const phase=duel?.phase, night=duel?.night
+  useEffect(() => {
+    if (!online) setMusic(page === 'tutorial' ? 2 : duel ? battleTrack(duel.night, duel.phase === 'finished') : 1)
+  }, [online, page, duel, night, phase])
+  useDuelSound(duel ?? undefined, duel ? localSoundFrame(duel, true) : undefined, true)
   useEffect(()=>{
     if(!duel||phase!=='reveal')return
     const timer=window.setTimeout(()=>{duel.resolve();refresh()},550)
@@ -290,7 +299,13 @@ function App() {
     }
   }
   const home = () => { setDuel(null); setPlays([]); setPage('home'); setRules(false); window.scrollTo(0, 0) }
-  const toggle=(c:Instance)=>setPlays(old=>old.some(x=>x.id===c.id)?old.filter(x=>x.id!==c.id):old.length<(duel?.max(0)??0)?[...old,{id:c.id}]:old)
+  const toggle = (entry: Instance) => {
+    if (plays.some(play => play.id === entry.id)) setPlays(plays.filter(play => play.id !== entry.id))
+    else if (plays.length < (duel?.max(0) ?? 0)) {
+      setPlays([...plays, { id: entry.id }])
+      playEffects(['select'])
+    }
+  }
   const tally=(r:Role)=>deck.filter(x=>x===r).length
   const deckError = deckCardsError(deck)
   const missing = RULES.deckSize - deck.length
@@ -318,6 +333,7 @@ function App() {
               </div>
               <div className="home-links">
                 <button className="quiet" aria-expanded={rules} onClick={() => setRules(value => !value)}>遊び方</button>
+                <button className="quiet" aria-haspopup="dialog" onClick={() => setSoundSettings(true)}>音量設定</button>
               </div>
             </div>
             <div className="hero-index" aria-hidden="true">Ⅰ <span>／</span> ⅩⅤ</div>
@@ -439,7 +455,7 @@ function App() {
                 </button>
               </div>
             ))}
-            <div className="hand-actions"><button className="primary action" disabled={(duel.players[0].hand.length>0&&!plays.length)||plays.some(p=>duel.players[0].hand.find(c=>c.id===p.id)?.role==='assassin'&&guessOptions.length>0&&!guessOptions.some(entry=>entry.role===p.guess))} onClick={()=>{if(duel.lock(plays)){setPlays([]);refresh()}}}>{duel.players[0].hand.length?'選択を確定':'パスを確定'} →</button></div></>}
+            <div className="hand-actions"><button className="primary action" disabled={(duel.players[0].hand.length>0&&!plays.length)||plays.some(p=>duel.players[0].hand.find(c=>c.id===p.id)?.role==='assassin'&&guessOptions.length>0&&!guessOptions.some(entry=>entry.role===p.guess))} onClick={()=>{if(duel.lock(plays)){playEffects(['confirm']);setPlays([]);refresh()}}}>{duel.players[0].hand.length?'選択を確定':'パスを確定'} →</button></div></>}
 
           {!pending && phase==='choice'&&duel.prompt&&<div className="choice"><h2>{duel.prompt.title}</h2><div className="duel-cards">{duel.prompt.options.map(c=><CardTile compact key={c.id} role={c.role} onClick={()=>{duel.answer(c.id);refresh()}} onInspect={() => inspect(c.role, { label: 'このカードを選択', run: () => { duel.answer(c.id); refresh() } })} />)}</div></div>}
           {!pending && phase==='end'&&<button className="primary action" onClick={()=>{duel.nextNight();refresh()}}>次の夜へ →</button>}
@@ -607,7 +623,9 @@ function App() {
         </Sheet>
       )}
       {preview && <CardDetail {...preview} onClose={() => setPreview(null)} />}
+      {soundSettings && <SoundSettings onClose={() => setSoundSettings(false)} />}
     </main><footer className="wrap footer">◈　人狼デュエル <span>WEREWOLF DUEL</span></footer>
   </>
 }
+initAudio()
 createRoot(document.getElementById('root')!).render(<App/>)

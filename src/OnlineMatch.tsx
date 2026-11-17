@@ -1,4 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { playEffects, setMusic } from './audio.ts'
+import { battleTrack } from './soundEvents.ts'
+import { useDuelSound } from './useDuelSound.ts'
 import { ROLES, RULES, STARTER, card, validDeck, type Role } from './cards.ts'
 import { CardDetail } from './CardDetail.tsx'
 import { CardTile } from './CardTile.tsx'
@@ -145,6 +148,14 @@ export default function OnlineMatch({ options, onClose }: { options: MatchDeck[]
   const refreshQueued = useRef(false)
   const closedRooms = useRef(new Set<string>())
   const game = room?.game
+  useEffect(() => { setMusic(game ? battleTrack(game.night, game.phase === 'finished') : 1) }, [game?.night, game?.phase])
+  useDuelSound(room?.id, game && room ? {
+    night: game.night,
+    revealed: game.revealed.some(cards => cards.length > 0),
+    hp: game.players.map(player => player.hpChange),
+    log: game.log,
+    result: game.phase === 'finished' ? game.winner === 'draw' ? 'draw' : game.winner === room.side ? 'victory' : 'defeat' : undefined,
+  } : undefined, false, degraded)
   const prompt = game?.phase === 'choice' ? game.prompt : null
   const chosenType = DECK_TYPES.find(type => selected === type)
   const generated = room && roomDecks?.id === room.id ? roomDecks.decks : undefined
@@ -246,6 +257,7 @@ export default function OnlineMatch({ options, onClose }: { options: MatchDeck[]
         accept(registered)
       }
       const update = await client.request(payload)
+      if ((payload.command as Command | undefined)?.kind === 'lock' && !closedRooms.current.has(update.id)) playEffects(['confirm'])
       setRetry(null)
       if ((payload.command as Command | undefined)?.kind === 'leave') {
         closedRooms.current.add(update.id)
@@ -314,8 +326,11 @@ export default function OnlineMatch({ options, onClose }: { options: MatchDeck[]
     } catch { setError('デッキを作成できませんでした。') }
   }
   function toggle(id: number) {
-    setPlays(previous => previous.some(play => play.id === id)
-      ? previous.filter(play => play.id !== id) : previous.length < (game?.max ?? 0) ? [...previous, { id }] : previous)
+    if (plays.some(play => play.id === id)) setPlays(plays.filter(play => play.id !== id))
+    else if (plays.length < (game?.max ?? 0)) {
+      setPlays([...plays, { id }])
+      playEffects(['select'])
+    }
   }
   const blocked = busy || degraded || retry !== null
   const canEdit = !room || room.phase === 'lobby' && !room.left.some(Boolean) && !room.ready[room.side]

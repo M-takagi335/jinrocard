@@ -608,6 +608,21 @@ html:has(.builder-sheet[open]) {
 .home-links {
   margin-top: 12px;
 }
+.sound-settings {
+  display: grid;
+  gap: 14px;
+}
+.sound-settings label {
+  display: block;
+}
+.sound-settings input {
+  accent-color: var(--gold);
+}
+.sound-settings input[type="range"] {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+}
 .home-catalog {
   margin-top: 34px;
 }
