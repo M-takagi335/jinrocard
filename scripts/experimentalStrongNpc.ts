@@ -1,0 +1,248 @@
+import { card, RULES, type Role } from '../src/cards.ts'
+import type { Duel, Investigation, Play, Side } from '../src/duel.ts'
+import type { StrongNpcView } from '../src/strongNpc.ts'
+
+type ReadonlyTree<T> = T extends object ? { readonly [K in keyof T]: ReadonlyTree<T[K]> } : T
+export type ExperimentalView = ReadonlyTree<StrongNpcView & { investigations: Investigation[] }>
+export type Features = Readonly<{ prediction?: boolean; lookahead?: boolean; intel?: boolean }>
+
+// Adapter kept outside the decision function. All collections are detached snapshots.
+export function experimentalView(duel: Duel, side: Side): ExperimentalView {
+  return { ...duel.strongNpcView(side), investigations: duel.investigationsFor(side) }
+}
+
+type Action = { role: Role; guess?: Role }
+type Pair<T> = [T, T]
+type Scenario = { hand: Role[]; actions: Action[]; cancel: [number, number, number, number] }
+const expand = (entries: ExperimentalView['enemyRemaining']) => entries.flatMap(e => Array<Role>(e.count).fill(e.role))
+const raid = (role: Role) => role === 'wolf' || role === 'dire' || role === 'fox'
+const defense = (role: Role) => role === 'hunter' || role === 'trap' || role === 'knight' || role === 'cat'
+const cap = (hp: number, max: number) => Math.max(0, Math.min(max, hp))
+
+function take(pool: Role[], rng: () => number) {
+  return pool.splice(Math.floor(rng() * pool.length), 1)[0]
+}
+function remove(pool: Role[], role: Role) {
+  const index = pool.indexOf(role)
+  if (index >= 0) pool.splice(index, 1)
+}
+
+export function handEvidence(view: ExperimentalView) {
+  const evidence = new Map<Role, number>()
+  for (const record of view.investigations) {
+    const age = view.night - record.night
+    for (const entry of record.cards) {
+      // The same instance may have been seen in more than one investigation.
+      const weight = entry.status === 'observed' && record.kind === 'seer' ? .96 :
+        entry.status === 'drawn' ? .82 * .62 ** Math.max(0, age - 1) :
+        entry.status === 'old' && record.kind === 'seer' ? .55 * .65 ** Math.max(0, age - 1) : 0
+      if (weight >= .12 && view.enemyRemaining.some(e => e.role === entry.role)) {
+        evidence.set(entry.role, Math.max(weight, evidence.get(entry.role) ?? 0))
+      }
+    }
+  }
+  return evidence
+}
+
+function priority(role: Role, hp: number, enemyHp: number, pressure: number, healing: number, noHeal: boolean) {
+  switch (role) {
+    case 'wolf': return 3.3
+    case 'dire': return hp <= 2 ? -10 : hp <= 5 ? 1 : enemyHp <= 5 ? 5 : 3.5
+    case 'fox': return hp <= 10 ? 4 : 2.4
+    case 'witch': return noHeal ? -5 : Math.min(4, RULES.hp - hp + pressure) * 1.1
+    case 'hunter': case 'trap': return (hp <= 6 ? 4 : 2.9) + pressure
+    case 'knight': return (hp <= 6 ? 3.2 : 2.3) + pressure * .5
+    case 'cat': case 'assassin': return 2.4
+    case 'mad': return 2.6
+    case 'merchant': return hp <= card(role).recoil! ? -10 : 1.2
+    case 'curse': return 1.3 + healing
+    default: return 1.3
+  }
+}
+
+function guessFrom(pool: Role[], rng: () => number) {
+  return pool[Math.floor(rng() * pool.length)]
+}
+
+function predict(view: ExperimentalView, features: Features, rng: () => number): Scenario[] {
+  const pool = expand(view.enemyRemaining), own = expand(view.ownRemaining)
+  const observed = view.enemyHistory.flat()
+  const initial = new Map(view.enemyDeck.map(e => [e.role, e.count]))
+  const recent = observed.length + 6
+  const raidRate = (observed.filter(raid).length + 6 * own.filter(raid).length / Math.max(1, own.length)) / recent
+  const defenseRate = (observed.filter(defense).length + 2) / (recent + 2)
+  const healing = view.hp < view.maxHp && own.includes('witch') ? .65 : 0
+  const evidence = features.intel ? handEvidence(view) : new Map<Role, number>()
+  const twoRate = (3 + view.enemyHistory.filter(turn => turn.length === 2).length) / (5 + view.enemyHistory.length)
+  const bias = new Map(view.enemyRemaining.map(({ role }) => {
+    const expected = (initial.get(role) ?? 0) * observed.length / RULES.deckSize
+    return [role, (observed.filter(r => r === role).length - expected) / (4 + expected)]
+  }))
+  return Array.from({ length: 24 }, () => {
+    const unseen = [...pool], hand: Role[] = []
+    for (const [role, weight] of evidence) {
+      if (hand.length < view.enemyHandCount && unseen.includes(role) && rng() < weight) {
+        hand.push(role)
+        remove(unseen, role)
+      }
+    }
+    while (hand.length < view.enemyHandCount && unseen.length) hand.push(take(unseen, rng))
+    const ranked = hand.map(role => {
+      const situational = features.prediction ?
+        (raid(role) ? -.75 * defenseRate : role === 'mad' ? twoRate * .9 : 0) : 0
+      return { role, score: priority(role, view.enemyHp, view.hp, features.prediction ? raidRate : 0,
+        features.prediction ? healing : 0, view.enemyNoHeal) + situational + 1.7 * (bias.get(role) ?? 0) + rng() * 4.6 }
+    }).sort((a, b) => b.score - a.score)
+    const amount = view.enemyMax >= 2 && ranked.length >= 2 && rng() < twoRate && ranked[1].score >= 1.7 ? 2 : 1
+    return {
+      hand,
+      actions: ranked.slice(0, amount).map(({ role }) => ({ role, guess: role === 'assassin' ? guessFrom(own, rng) : undefined })),
+      cancel: [0, 0, 0, 0].map(() => Math.floor(rng() * 2)) as Scenario['cancel'],
+    }
+  })
+}
+
+// Public HP projection follows the engine phases. Non-HP effects are scored separately.
+export function projectNight(committed: Pair<readonly Action[]>, hp: Pair<number>, cancel: Scenario['cancel'],
+  maxHp: number = RULES.hp, noHeal: Pair<boolean> = [false, false]) {
+  const active = committed.map((actions, i) => {
+    const mad = committed[1 - i].filter(action => action.role === 'mad').length
+    return actions.length === 2 && mad ? actions.filter((_, j) => j !== cancel[i * 2] &&
+      (mad < 2 || j !== cancel[i * 2 + 1])) : actions
+  })
+  const count = (side: number, role: Role) => active[side].filter(a => a.role === role).length
+  const shield = [0, 1].map(i => count(i, 'knight') * card('knight').power!)
+  const damage = [0, 0], trap = [0, 0], recoil = [0, 0], cat = [0, 0]
+  const hit = (target: number, amount: number) => {
+    const blocked = Math.min(shield[target], amount)
+    shield[target] -= blocked
+    return amount - blocked
+  }
+  for (const i of [0, 1]) {
+    const enemy = 1 - i
+    let attack = 0, special = 0
+    for (const a of active[i]) {
+      const spec = card(a.role)
+      if (raid(a.role)) {
+        attack += a.role === 'fox' && hp[i] <= spec.lowHp! ? spec.boosted! : spec.power!
+        recoil[i] += spec.recoil ?? 0
+      }
+      if (a.role === 'assassin' && committed[enemy].some(b => b.role === a.guess)) special += spec.power!
+    }
+    if (attack) {
+      trap[i] = count(enemy, 'trap') * card('trap').power!
+      if (trap[i] || count(enemy, 'hunter')) attack = 0
+    }
+    damage[enemy] = hit(enemy, attack + special)
+  }
+  for (const i of [0, 1]) damage[i] += hit(i, trap[i])
+  for (const i of [0, 1]) if (damage[i]) cat[1 - i] = hit(1 - i, count(i, 'cat') * card('cat').power!)
+  const result = hp.map((value, i) => cap(value - damage[i] - cat[i] - recoil[i], maxHp)) as Pair<number>
+  const supplies: Pair<number> = [0, 0]
+  if (result.every(Boolean)) {
+    for (const i of [0, 1]) {
+      if (!noHeal[i] && !count(1 - i, 'curse')) result[i] = cap(result[i] + count(i, 'witch') * card('witch').power!, maxHp)
+      result[i] = cap(result[i] - count(i, 'merchant') * card('merchant').recoil!, maxHp)
+    }
+    if (result.every(Boolean)) for (const i of [0, 1]) {
+      const attacks = committed[1 - i].some(a => card(a.role).category === 'attack')
+      supplies[i] = count(i, 'merchant') * card('merchant').power! + count(i, 'mason') +
+        (attacks ? count(i, 'spy') * card('spy').power! : count(i, 'jester') * card('jester').power!)
+    }
+  }
+  return { hp: result, active, supplies }
+}
+
+function payoff(hp: Pair<number>, start: Pair<number>, late: number, final: boolean) {
+  const diff = hp[0] - hp[1]
+  if (!hp[0] || !hp[1] || final) return Math.sign(diff) * 25 + diff * .5
+  const trailing = start[0] < start[1]
+  return (hp[0] - start[0]) * (1.05 + (start[0] <= 7 ? .24 : 0) + (trailing ? -.25 : .35) * late)
+    + (start[1] - hp[1]) * (1.14 + (trailing ? .4 : 0) * late)
+    + late * (Math.tanh(diff / 4) - Math.tanh((start[0] - start[1]) / 4)) * 4
+}
+
+function combinations<T>(hand: readonly T[], max: number) {
+  return hand.flatMap((entry, i) => [[entry], ...(max >= 2 ? hand.slice(i + 1).map(next => [entry, next]) : [])])
+}
+
+export function experimentalStrongNpc(view: ExperimentalView, rng: () => number, features: Features = {
+  prediction: true, lookahead: true, intel: true,
+}): Play[] {
+  if (!view.hand.length) return []
+  const scenarios = predict(view, features, rng)
+  const guesses = view.enemyRemaining.map(entry => ({ ...entry,
+    hits: scenarios.filter(s => s.actions.some(a => a.role === entry.role)).length,
+  })).sort((a, b) => b.hits - a.hits || b.count - a.count).slice(0, 2).map(e => e.role)
+  const hp: Pair<number> = [view.hp, view.enemyHp]
+  const late = Math.max(0, 1 - (view.finalNight - view.night) / 5)
+  const final = view.night >= view.finalNight
+  const values = combinations(view.hand, view.max).flatMap(move => {
+    const alternatives = move.some(a => a.role === 'assassin') && guesses.length ? guesses : [undefined]
+    return alternatives.map(guess => {
+      const actions = move.map(({ role }) => ({ role, guess: role === 'assassin' ? guess : undefined }))
+      const after = view.hand.filter(entry => !move.includes(entry)).map(entry => entry.role)
+      let score = 0
+      for (const scenario of scenarios) {
+        const result = projectNight([actions, scenario.actions], hp, scenario.cancel, view.maxHp, [view.noHeal, view.enemyNoHeal])
+        score += payoff(result.hp, hp, late, final)
+        if (final || !result.hp.every(Boolean)) continue
+        const ownSupply = result.supplies[0] + result.active[0].filter(a => a.role === 'medium' && view.discard.length).length
+        const supply = Math.min(view.deckCount + view.discard.length, ownSupply)
+        score += (Math.min(Math.max(view.handRefill, after.length + supply), 5) -
+          Math.min(Math.max(view.handRefill, after.length), 5)) * (after.length < 4 ? .82 : .37)
+        const future = (side: number) => result.active[side].reduce((sum, { role }) =>
+          sum + (role === 'tyrant' ? 1.1 : role === 'keeper' && (side ? view.enemyDiscard : view.discard).length ? .55 :
+            role === 'seer' || role === 'prophet' ? .18 : 0), 0)
+        score += future(0) - future(1) * .75
+      }
+      const cost = actions.reduce((sum, a) => sum + (after.length < view.handRefill ? .08 : .25) +
+        (['witch','trap','dire','wolf'].includes(a.role) ? .27 : .05), 0)
+      return { move, actions, after, score: score / scenarios.length - (final ? 0 : cost) + rng() * .17 }
+    })
+  }).sort((a, b) => b.score - a.score)
+
+  const beam = features.lookahead && !final ? values.slice(0, 4) : values.slice(0, 1)
+  if (beam.length > 1) {
+    const ownPool = expand(view.ownRemaining)
+    for (const entry of view.hand) remove(ownPool, entry.role)
+    const enemyPool = expand(view.enemyRemaining)
+    // Shared current scenarios and random seeds across candidates. A neutral,
+    // greedy opponent policy makes this a two-night approximation.
+    const futures = [0, 6, 12, 18].map(index => ({ scenario: scenarios[index], seed: Math.floor(rng() * 0x100000000) }))
+    for (const move of beam) {
+      let score = 0
+      for (const { scenario, seed } of futures) {
+        const result = projectNight([move.actions, scenario.actions], hp, scenario.cancel, view.maxHp, [view.noHeal, view.enemyNoHeal])
+        if (!result.hp.every(Boolean)) continue
+        let state = seed
+        const nextRandom = () => ((state = (Math.imul(state, 1664525) + 1013904223) >>> 0) / 0x100000000)
+        const unusedEnemy = [...enemyPool], leftEnemy = [...scenario.hand]
+        for (const role of scenario.hand) remove(unusedEnemy, role)
+        for (const { role } of scenario.actions) remove(leftEnemy, role)
+        const draw = (left: Role[], available: Role[], supplies: number) => {
+          const count = Math.min(RULES.handLimit, Math.max(view.handRefill, left.length + supplies) + RULES.nightlyDraw)
+          while (left.length < count && available.length) left.push(take(available, nextRandom))
+          return left
+        }
+        const own = draw([...move.after], [...ownPool, ...(view.deckCount < 3 ? view.discard.map(c => c.role) : [])], result.supplies[0])
+        const enemy = draw(leftEnemy, [...unusedEnemy, ...(unusedEnemy.length < 3 ? view.enemyDiscard.map(c => c.role) : [])], result.supplies[1])
+        const max = (i: number) => result.active[1 - i].some(a => a.role === 'tyrant') ? 1 : RULES.maxPlays
+        const theirs = enemy.map(role => ({ role, score: priority(role, result.hp[1], result.hp[0], 0, 0, false) }))
+          .sort((a, b) => b.score - a.score).slice(0, max(1))
+          .map(({ role }) => ({ role, guess: role === 'assassin' ? guessFrom(expand(view.ownRemaining), nextRandom) : undefined }))
+        const nextGuess = guessFrom(expand(view.enemyRemaining), nextRandom)
+        let best = -Infinity
+        for (const action of own.length ? combinations(own, max(0)) : [[]]) {
+          const next = projectNight([action.map(role => ({ role, guess: role === 'assassin' ? nextGuess : undefined })), theirs],
+            result.hp, scenario.cancel, view.maxHp)
+          best = Math.max(best, payoff(next.hp, result.hp, late, false))
+        }
+        score += best
+      }
+      move.score += .24 * score / futures.length
+    }
+    beam.sort((a, b) => b.score - a.score)
+  }
+  return beam[0].move.map(({ id }, i) => ({ id, ...(beam[0].actions[i].guess ? { guess: beam[0].actions[i].guess } : {}) }))
+}
