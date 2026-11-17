@@ -11,7 +11,8 @@ import { DeckCardList } from './DeckCardList.tsx'
 import { DeckGenerator } from './DeckGenerator.tsx'
 import { MatchSetup } from './MatchSetup.tsx'
 import { NPC_DIFFICULTIES, type NpcDifficulty } from './strongNpc.ts'
-import { generateDeck, type DeckType } from './generateDeck.ts'
+import type { DeckType } from './generateDeck.ts'
+import { cardsForMatch, generatedMatchType } from './matchDeck.ts'
 import { DeckComposition, Sheet } from './Sheet.tsx'
 import { AssassinPrediction } from './AssassinPrediction.tsx'
 import './style.css'
@@ -86,6 +87,7 @@ function App() {
   })
   const [npcDifficulty, setNpcDifficulty] = useState<NpcDifficulty>('standard')
   const [battleName, setBattleName] = useState('')
+  const lastMatch = useRef<{ selected: MatchDeck; npc: typeof npcDeck } | null>(null)
   const [myMatchId, setMyMatchId] = useState<string>()
   const [quickMatchId, setQuickMatchId] = useState('standard')
   const [page, setPage] = useState<'home' | 'builder'>('home')
@@ -155,7 +157,7 @@ function App() {
     const id = 'quick:' + type
     try {
       if (!quickDecks[type]) {
-        const generated: MatchDeck = { id, source: 'おまかせ', name: label, cards: generateDeck(type) }
+        const generated: MatchDeck = { id, source: 'おまかせ', name: label, cards: [] }
         setQuickDecks(previous => ({ ...previous, [type]: generated }))
       }
       setQuickMatchId(id)
@@ -168,7 +170,7 @@ function App() {
     setMatchError('')
     if (type === npcDeck.type) return
     try {
-      setNpcDeck({ type, cards: type === 'default' ? [...STARTER] : generateDeck(type) })
+      setNpcDeck({ type, cards: type === 'default' ? [...STARTER] : [] })
     } catch (failure) {
       setMatchError(failure instanceof Error ? failure.message : 'NPCのデッキを作成できませんでした。')
     }
@@ -188,9 +190,11 @@ function App() {
     closeOverlay()
     window.scrollTo(0, 0)
   }
-  const startPrepared = (selected: MatchDeck) => {
+  const startPrepared = (selected: MatchDeck, npc = npcDeck) => {
     try {
-      start(selected.cards, npcDeck.cards, selected.name)
+      start(cardsForMatch(selected.cards, generatedMatchType(selected.id)),
+        cardsForMatch(npc.cards, npc.type === 'default' ? undefined : npc.type), selected.name)
+      lastMatch.current = { selected, npc }
     } catch (failure) {
       setMatchError(failure instanceof Error ? failure.message : '対戦を開始できませんでした。')
     }
@@ -438,7 +442,13 @@ function App() {
 
           {!pending && phase==='choice'&&duel.prompt&&<div className="choice"><h2>{duel.prompt.title}</h2><div className="duel-cards">{duel.prompt.options.map(c=><CardTile compact key={c.id} role={c.role} onClick={()=>{duel.answer(c.id);refresh()}} onInspect={() => inspect(c.role, { label: 'このカードを選択', run: () => { duel.answer(c.id); refresh() } })} />)}</div></div>}
           {!pending && phase==='end'&&<button className="primary action" onClick={()=>{duel.nextNight();refresh()}}>次の夜へ →</button>}
-          {!pending && phase==='finished'&&<div className="result" role="status"><div className="eyebrow">✦　決着</div><h2>{duel.winner==='draw'?'引き分け':duel.winner===0?'あなたの勝利':'NPCの勝利'}</h2><p>{duel.reason}　あなた {duel.players[0].hp} HP / NPC {duel.players[1].hp} HP</p></div>}
+          {!pending && phase==='finished'&&<div className="result" role="status"><div className="eyebrow">✦　決着</div><h2>{duel.winner==='draw'?'引き分け':duel.winner===0?'あなたの勝利':'NPCの勝利'}</h2><p>{duel.reason}　あなた {duel.players[0].hp} HP / NPC {duel.players[1].hp} HP</p>
+            <button className="primary" onClick={() => {
+              const previous = lastMatch.current
+              if (previous) startPrepared(previous.selected, previous.npc)
+            }}>もう一度対戦</button>
+            {matchError && <p role="alert">{matchError}</p>}
+          </div>}
         </section><aside className="panel chronicle">
           <h2>対戦記録</h2><div className="filters tabs">{([['log','ログ'],['self','自分の捨て札'],['enemy','NPCの捨て札']] as const).map(([k,name])=><button key={k} className={k===tab?'active':''} aria-pressed={tab===k} onClick={()=>setTab(k)}>{name}</button>)}</div>
           {tab === 'log' ? (

@@ -8,6 +8,7 @@ import type { MatchDeck } from './decks.ts'
 import type { Play, Side } from './duel.ts'
 import { DECK_TYPES, PROFILES, generateDeck, type DeckType } from './generateDeck.ts'
 import { InvestigationPanel } from './InvestigationPanel.tsx'
+import { cardsForMatch } from './matchDeck.ts'
 import { OnlineError, onlineClient } from './onlineClient.ts'
 import type { Command, OnlineView } from './onlineProtocol.ts'
 import { copyLobbyField, formatRoomCodeInput, isRoomCode } from './roomClipboard.ts'
@@ -29,7 +30,24 @@ function clearInvite() {
   history.replaceState(null, '', url)
 }
 type RequestPayload = Record<string, unknown>
-type PendingRequest = [payload: RequestPayload, preparation?: RequestPayload]
+type DeckSnapshot = { type: DeckType; cards: Role[] }
+type PendingRequest = [payload: RequestPayload, preparation?: RequestPayload, snapshot?: DeckSnapshot]
+type RoomDecks = { id: string; decks: Partial<Record<DeckType, Role[]>> }
+const roomDeckKey = 'jinro-online-generated-decks'
+function restoreRoomDecks(id: string): RoomDecks {
+  const result: RoomDecks = { id, decks: {} }
+  try {
+    const saved = JSON.parse(localStorage.getItem(roomDeckKey) ?? 'null')
+    if (saved?.id === id) for (const type of DECK_TYPES) {
+      const cards = saved.decks?.[type]
+      if (Array.isArray(cards) && validDeck(cards)) result.decks[type] = cards
+    }
+  } catch { /* unavailable */ }
+  return result
+}
+function rememberRoomDeck(snapshot: RoomDecks) {
+  try { localStorage.setItem(roomDeckKey, JSON.stringify(snapshot)) } catch { /* unavailable */ }
+}
 
 type Prompt = NonNullable<NonNullable<OnlineView['game']>['prompt']>
 
@@ -118,7 +136,7 @@ export default function OnlineMatch({ options, onClose }: { options: MatchDeck[]
   const [deckPreview, setDeckPreview] = useState(false)
   const [mine, setMine] = useState(false)
   const [selected, setSelected] = useState('standard')
-  const [generated, setGenerated] = useState<Partial<Record<DeckType, Role[]>>>({})
+  const [roomDecks, setRoomDecks] = useState<RoomDecks>()
   const [plays, setPlays] = useState<Play[]>([])
   const [dialog, setDialog] = useState<'investigations' | 'own' | 'enemy' | 'own-discard' | 'enemy-discard'>()
   const [confirmed, setConfirmed] = useState<Set<string>>(() => new Set())
@@ -128,9 +146,11 @@ export default function OnlineMatch({ options, onClose }: { options: MatchDeck[]
   const closedRooms = useRef(new Set<string>())
   const game = room?.game
   const prompt = game?.phase === 'choice' ? game.prompt : null
-  const chosen = (selected === 'room-current' ? room?.ownDeck : generated[selected as DeckType])
+  const chosenType = DECK_TYPES.find(type => selected === type)
+  const generated = room && roomDecks?.id === room.id ? roomDecks.decks : undefined
+  const chosen = chosenType ? generated?.[chosenType] : (selected === 'room-current' ? room?.ownDeck : undefined)
     ?? options.find(deck => deck.id === selected)?.cards ?? STARTER
-  const deckMatches = room?.ownDeck?.join(',') === chosen.join(',')
+  const deckMatches = !!chosen && room?.ownDeck?.join(',') === chosen.join(',')
   const opponent = (room ? 1 - room.side : 1) as Side
 
   const accept = useCallback((update: OnlineView) => {
@@ -198,14 +218,23 @@ export default function OnlineMatch({ options, onClose }: { options: MatchDeck[]
   }, [client, connectedRoom, reload, reconnect])
   useEffect(() => { setPlays([]) }, [game?.night, room?.id])
   useEffect(() => {
-    if (room?.ownDeck && !generated[selected as DeckType] && room.ownDeck.join(',') !== chosen.join(',')) {
+    if (room) {
+      const restored = restoreRoomDecks(room.id)
+      setRoomDecks(restored)
+      const registeredType = DECK_TYPES.find(type => restored.decks[type]?.join(',') === room.ownDeck?.join(',') && restored.decks[type])
+      if (registeredType) {
+        setSelected(registeredType)
+        return
+      }
+    }
+    if (room?.ownDeck && room.ownDeck.join(',') !== chosen?.join(',')) {
       const saved = options.find(option => option.cards.join(',') === room.ownDeck?.join(','))
       setSelected(saved?.id ?? 'room-current')
     }
     // Restore the room's applied deck once when entering from a saved browser session.
   }, [room?.id])
 
-  async function send(payload: RequestPayload, preparation?: RequestPayload) {
+  async function send(payload: RequestPayload, preparation?: RequestPayload, snapshot?: DeckSnapshot) {
     if (!client || writeInFlight.current) return
     writeInFlight.current = true
     setBusy(true)
@@ -227,6 +256,11 @@ export default function OnlineMatch({ options, onClose }: { options: MatchDeck[]
         onClose()
       } else {
         if (closedRooms.current.has(update.id)) return
+        if (snapshot) {
+          const registered = { id: update.id, decks: { [snapshot.type]: snapshot.cards } }
+          setRoomDecks(registered)
+          rememberRoomDeck(registered)
+        }
         accept(update)
         remember(update.id)
         setConnectedRoom(update.id)
@@ -234,7 +268,7 @@ export default function OnlineMatch({ options, onClose }: { options: MatchDeck[]
       }
     } catch (failure) {
       const issue = failure instanceof OnlineError ? failure : new OnlineError('通信エラーです。', false, true)
-      setRetry(issue.retry && payload.op !== 'join' ? [payload, preparation] : null)
+      setRetry(issue.retry && payload.op !== 'join' ? [payload, preparation, snapshot] : null)
       setDegraded(issue.retry)
       setError(issue.message)
       if (issue.gone && room) {
@@ -250,18 +284,33 @@ export default function OnlineMatch({ options, onClose }: { options: MatchDeck[]
     }
   }
   function prepare() {
-    if (!room || !validDeck(chosen)) return
+    if (!room || !chosen || !validDeck(chosen)) return
     const request = (command: Command) => ({ op: 'command', id: room.id, request: crypto.randomUUID(), command })
     void send(request({ kind: 'ready' }), deckMatches ? undefined : request({ kind: 'deck', cards: [...chosen] }))
+  }
+  function createRoom() {
+    if (writeInFlight.current) return
+    try {
+      const cards = cardsForMatch(chosen ?? [], chosenType)
+      void send({ op: 'create', cards, request: crypto.randomUUID() }, undefined, chosenType ? { type: chosenType, cards } : undefined)
+    } catch { setError('デッキを作成できませんでした。') }
   }
   function command(action: Command) {
     if (room) void send({ op: 'command', id: room.id, request: crypto.randomUUID(), command: action })
   }
   function chooseType(type: DeckType) {
+    if (writeInFlight.current || retry) return
     try {
-      if (!generated[type]) setGenerated({ ...generated, [type]: generateDeck(type) })
       setSelected(type)
       setError('')
+      if (!room) return
+      const remembered = restoreRoomDecks(room.id)
+      const decks = { ...generated, ...remembered.decks }
+      const cards = decks[type] ?? cardsForMatch([], type)
+      const snapshot = { id: room.id, decks: { ...decks, [type]: cards } }
+      setRoomDecks(snapshot)
+      rememberRoomDeck(snapshot)
+      if (room.ownDeck?.join(',') !== cards.join(',')) command({ kind: 'deck', cards })
     } catch { setError('デッキを作成できませんでした。') }
   }
   function toggle(id: number) {
@@ -290,7 +339,8 @@ export default function OnlineMatch({ options, onClose }: { options: MatchDeck[]
       </div>}
       <div className="online-actions">
         {room?.ownDeck && selected !== 'room-current' && !deckMatches && <button className="quiet" onClick={() => setSelected('room-current')}>登録済みの構成に戻す</button>}
-        <button className="quiet" onClick={() => setDeckPreview(true)}>選択したデッキを確認</button>
+        {chosen ? <button className="quiet" onClick={() => setDeckPreview(true)}>選択したデッキを確認</button>
+          : <span className="hint">{room ? 'おまかせのタイプを選んで20枚を登録してください。' : 'ルーム作成時に20枚を抽選します。'}</span>}
       </div>
     </section>
   )
@@ -309,7 +359,7 @@ export default function OnlineMatch({ options, onClose }: { options: MatchDeck[]
           {mode === 'create' ? <>
             <button className="quiet" disabled={busy} onClick={() => { setMode('join'); setRetry(null); setError('') }}>ルームコードを入力</button>
             {deckPicker}
-            <button className="primary" disabled={busy || !!retry} onClick={() => void send({ op: 'create', cards: chosen, request: crypto.randomUUID() })}>このデッキでルームを作成</button>
+            <button className="primary" disabled={busy || !!retry} onClick={createRoom}>このデッキでルームを作成</button>
           </> : <form className="online-form" onSubmit={event => { event.preventDefault(); if (!busy && !retry && isRoomCode(code)) void send({ op: 'join', code }) }}>
             <label htmlFor="invite-code">ルームコード</label>
             <input id="invite-code" autoCapitalize="characters" autoComplete="off" value={code}
@@ -327,7 +377,7 @@ export default function OnlineMatch({ options, onClose }: { options: MatchDeck[]
           {canEdit && deckPicker}
           <div className="online-actions">
             {room.ready[room.side] ? <p role="status">準備完了・相手を待っています</p> :
-              <button className="primary" disabled={blocked || !room.joined || room.left.some(Boolean) || !validDeck(chosen)}
+              <button className="primary" disabled={blocked || !room.joined || room.left.some(Boolean) || !chosen || !validDeck(chosen)}
                 onClick={prepare}>{busy ? '送信中…' : '準備完了'}</button>}
             <button className="quiet" disabled={busy} onClick={() => command({ kind: 'leave' })}>ルーム退出</button>
           </div>
@@ -399,7 +449,7 @@ export default function OnlineMatch({ options, onClose }: { options: MatchDeck[]
         <ol className="log">{[...game.log].reverse().map((entry, index) => <li key={index}><span>第{entry.night}夜</span>{entry.text}</li>)}</ol>
       </details></aside></div>
     </section>}
-    {deckPreview && <Sheet title="デッキの内容" className="online-sheet" onClose={() => setDeckPreview(false)}><DeckCardList cards={chosen} onInspect={setPeek} /></Sheet>}
+    {deckPreview && chosen && <Sheet title="デッキの内容" className="online-sheet" onClose={() => setDeckPreview(false)}><DeckCardList cards={chosen} onInspect={setPeek} /></Sheet>}
     {game && dialog === 'investigations' && <InvestigationPanel records={[...game.investigations].reverse()} onClose={() => setDialog(undefined)} onInspect={setPeek} />}
     {game && viewed && (dialog === 'own' || dialog === 'enemy') && <DeckViewer title={dialog === 'own' ? '自分のデッキ' : '相手のデッキ'}
       night={game.night} hp={viewed.hp} initial={viewed.initial} remaining={viewed.remaining} onInspect={setPeek} onClose={() => setDialog(undefined)} />}

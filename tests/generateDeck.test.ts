@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { card, ROLES, validDeck } from '../src/cards.ts'
+import { card, ROLES, STARTER, validDeck } from '../src/cards.ts'
 import { Duel } from '../src/duel.ts'
 import { DECK_TYPES, PROFILES, generateDeck, generateDecks } from '../src/generateDeck.ts'
+import { cardsForMatch } from '../src/matchDeck.ts'
 
 function seeded(seed: number) {
   return () => (seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0) / 2 ** 32
@@ -29,23 +30,42 @@ test('1,500 complete-random decks meet the raid floor and exercise every role', 
   assert.deepEqual([...seen].sort(), [...ROLES].sort())
 })
 
-test('all generator types make valid variable decks and satisfy their minimum categories', () => {
-  const rng = seeded(29)
+test('1,000 samples per deck type preserve composition limits and archetype emphasis', context => {
+  const rolesByCategory = (cards: readonly (typeof ROLES)[number][], category: ReturnType<typeof card>['category']) =>
+    cards.filter(role => card(role).category === category).length
+  const stats = new Map<string, { attack: number; guard: number; intel: number; supply: number; unique: number }>()
   for (const type of DECK_TYPES) {
+    const rng = seeded(29)
     const profile = PROFILES[type]
-    if ('preset' in profile) continue
     const signatures = new Set<string>()
-    for (let trial = 0; trial < 100; trial++) {
+    const counts = { attack: 0, guard: 0, intel: 0, supply: 0 }
+    for (let trial = 0; trial < 1000; trial++) {
       const deck = generateDeck(type, rng)
       assert.equal(deck.length, 20)
       assert.ok(validDeck(deck), type)
       for (const [category, minimum] of profile.minimums) {
-        assert.ok(deck.filter(role => card(role).category === category).length >= minimum)
+        assert.ok(rolesByCategory(deck, category) >= minimum)
       }
+      if (type === 'intel') {
+        assert.ok(deck.includes('assassin'))
+        assert.ok(deck.includes('seer') || deck.includes('prophet'))
+      }
+      for (const category of ['attack', 'guard', 'intel', 'supply'] as const) counts[category] += rolesByCategory(deck, category)
       signatures.add([...deck].sort().join(','))
     }
-    assert.ok(signatures.size > 1, type)
+    assert.ok(signatures.size >= 950, type)
+    const stat = { attack: counts.attack / 1000, guard: counts.guard / 1000, intel: counts.intel / 1000,
+      supply: counts.supply / 1000, unique: signatures.size }
+    stats.set(type, stat)
+    context.diagnostic(type + ': ' + JSON.stringify(stat))
   }
+  const neutral = stats.get('random')!
+  assert.ok(stats.get('rush')!.attack > neutral.attack)
+  assert.ok(stats.get('defense')!.guard > neutral.guard)
+  assert.ok(stats.get('intel')!.intel > neutral.intel)
+  assert.ok(stats.get('combo')!.supply > neutral.supply)
+  for (let trial = 0; trial < 1000; trial++) assert.deepEqual(cardsForMatch(STARTER), STARTER)
+  context.diagnostic('standard: 1 fixed composition')
 })
 
 test('batches mix selected types, avoid duplicate compositions, and skip used names', () => {
@@ -84,24 +104,4 @@ test('the same generator supplies both sides of an NPC duel', () => {
     while (duel.prompt) assert.ok(duel.answer(duel.prompt.options[0].id))
     assert.equal(duel.phase, 'end')
   }
-})
-
-test('intel uses the exact tested assassin-support recipe in both single and bulk generation', () => {
-  const expected = {
-    wolf: 3, assassin: 2, fox: 1, cat: 1, hunter: 1, knight: 2, witch: 2, trap: 2,
-    seer: 2, prophet: 2, mad: 1, curse: 1,
-  }
-  const check = (roles: ReturnType<typeof generateDeck>) => {
-    assert.ok(validDeck(roles))
-    const counts: Record<string, number> = {}
-    for (const role of roles) counts[role] = (counts[role] ?? 0) + 1
-    assert.deepEqual(counts, expected)
-  }
-  check(generateDeck('intel', seeded(111)))
-  check(generateDeck('intel', seeded(4)))
-  const previous = generateDecks(['intel'], 1)
-  const batch = generateDecks(['intel'], 3, ['情報戦型01'], previous)
-  assert.deepEqual(batch.map(entry => entry.name), ['情報戦型02', '情報戦型03', '情報戦型04'])
-  batch.forEach(entry => check(entry.cards))
-  assert.notStrictEqual(batch[0].cards, batch[1].cards)
 })

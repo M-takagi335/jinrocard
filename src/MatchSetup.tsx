@@ -3,6 +3,7 @@ import { DeckCardList } from './DeckCardList.tsx'
 import { RULES, type Role } from './cards.ts'
 import { deckCardsError, type MatchDeck } from './decks.ts'
 import { DECK_TYPES, PROFILES, type DeckType } from './generateDeck.ts'
+import { generatedMatchHint, generatedMatchType } from './matchDeck.ts'
 import { Sheet } from './Sheet.tsx'
 import { NPC_DIFFICULTIES, type NpcDifficulty } from './strongNpc.ts'
 
@@ -40,7 +41,8 @@ export function MatchSetup({ options, quickId, myId, onSelect, npcDeck, onNpcTyp
   const tabId = useId()
   const selectedId = tab === 0 ? quickId : myId
   const selected = options.find(deck => deck.id === selectedId)
-  const problem = selected ? deckCardsError(selected.cards) : '使用するデッキを選択してください。'
+  const playerGenerated = !!selected && !!generatedMatchType(selected.id)
+  const problem = selected ? playerGenerated ? null : deckCardsError(selected.cards) : '使用するデッキを選択してください。'
   const previewDeck = previewSide === 'npc'
     ? { cards: npcDeck.cards, name: npcDeck.type === 'default' ? '標準デッキ' : quickLabels[npcDeck.type] }
     : selected
@@ -57,10 +59,10 @@ export function MatchSetup({ options, quickId, myId, onSelect, npcDeck, onNpcTyp
         footer={<div className="match-footer">
           <div className="match-selection">
             <span className="match-status" role={error ? 'alert' : 'status'}>
-              {error || problem || (selected && selected.name + ' · ' + selected.cards.length + '枚')}
+              {error || problem || (selected && selected.name + ' · ' + (playerGenerated ? generatedMatchHint : selected.cards.length + '枚'))}
             </span>
-            <button className="quiet" aria-haspopup="dialog" disabled={!selected || !!problem}
-              onClick={() => setPreviewSide('player')}>デッキの内容を確認</button>
+            {!playerGenerated && <button className="quiet" aria-haspopup="dialog" disabled={!selected || !!problem}
+              onClick={() => setPreviewSide('player')}>デッキの内容を確認</button>}
           </div>
           <button className="primary" disabled={!selected || !!problem} onClick={() => selected && onStart(selected)}>
             この設定でNPC戦を開始
@@ -131,7 +133,8 @@ export function MatchSetup({ options, quickId, myId, onSelect, npcDeck, onNpcTyp
               <option value="default">標準デッキ</option>
               {DECK_TYPES.map(type => <option key={type} value={type}>{quickLabels[type]}</option>)}
             </select>
-            <button className="quiet" aria-haspopup="dialog" onClick={() => setPreviewSide('npc')}>NPCの内容を確認</button>
+            {npcDeck.type !== 'default' ? <span className="hint">{generatedMatchHint}</span>
+              : <button className="quiet" aria-haspopup="dialog" onClick={() => setPreviewSide('npc')}>NPCの内容を確認</button>}
           </div>
         </section>
         <fieldset className="match-difficulty">
