@@ -87,6 +87,79 @@ const passive: Role[] = ['hunter','hunter','hunter','knight','knight','witch','w
 const offense: Role[] = ['wolf','wolf','wolf','dire','dire','fox','fox','cat','cat','assassin','assassin',
   'hunter','hunter','hunter','witch','witch','mason','mason','medium','keeper']
 
+test('Mason draws two before a private discard, preserves instance IDs on resume and discards exactly once', () => {
+  for (const side of [0, 1] as const) {
+    const enemy = (1 - side) as 0 | 1
+    for (let seed = 1; ; seed++) {
+      assert.ok(seed <= 100, 'Expected a fixed hand with a Mason and duplicate roles')
+      const { room, word } = started(passive, passive, seed)
+      const initial = gameView(room, side)!, opponent = gameView(room, enemy)!
+      const mason = initial.hand.find(card => card.role === 'mason')
+      const quiet = opponent.hand.find(card => card.role === 'hunter')
+      if (!mason || !quiet) continue
+      applyCommand(room, side, { kind: 'lock', night: 1, plays: [{ id: mason.id }] }, true, word)
+      applyCommand(room, enemy, { kind: 'lock', night: 1, plays: [{ id: quiet.id }] }, true, word)
+      const pending = gameView(room, side)!
+      assert.equal(pending.phase, 'choice')
+      assert.match(pending.prompt!.title, /共有者/)
+      assert.equal(pending.hand.length, initial.hand.length + 1)
+      assert.equal(pending.hand.filter(card => !initial.hand.some(original => original.id === card.id)).length, 2)
+      assert.deepEqual(pending.prompt!.options, pending.hand)
+      const option = pending.hand.find((card, i) => pending.hand.some((other, j) => j !== i && other.role === card.role))
+      if (!option) continue
+      const resumed = JSON.parse(JSON.stringify(room)) as typeof room
+      assert.deepEqual(gameView(resumed, side), pending)
+      const waiting = gameView(resumed, enemy)!
+      assert.equal(waiting.prompt, null)
+      assert.equal(waiting.opponentChoosing, true)
+      const answer = { kind: 'answer', night: 1, step: pending.prompt!.step, id: option.id } as const
+      assert.throws(() => applyCommand(resumed, enemy, answer, true, word))
+      assert.throws(() => applyCommand(resumed, side, { ...answer, id: waiting.hand[0].id }, true, word))
+      assert.throws(() => applyCommand(resumed, side, { kind: 'next', night: 1 }, true, word))
+      applyCommand(resumed, side, answer, true, word)
+      const after = gameView(resumed, side)!
+      assert.equal(after.phase, 'end')
+      assert.deepEqual(after.hand, pending.hand.filter(card => card.id !== option.id))
+      assert.equal(replay(resumed).players[side].discard.filter(card => card.id === option.id).length, 1)
+      assert.throws(() => applyCommand(resumed, side, answer, true, word))
+      applyCommand(resumed, 0, { kind: 'next', night: 1 }, true, word)
+      applyCommand(resumed, 1, { kind: 'next', night: 1 }, true, word)
+      assert.equal(gameView(resumed, enemy)!.night, 2)
+      break
+    }
+  }
+})
+
+test('Medium and Keeper select a discarded instance and move it to the correct zone', () => {
+  for (const role of ['medium', 'keeper'] as const) {
+    for (let seed = 1; ; seed++) {
+      assert.ok(seed <= 100, 'Expected a fixed hand with recovery')
+      const { room, word } = started(passive, offense, seed)
+      const original = gameView(room, 1)!.hand.find(card => card.role === 'hunter')
+      const first = gameView(room, 0)!.hand.find(card => card.role === 'hunter')
+      if (!original || !first) continue
+      applyCommand(room, 0, { kind: 'lock', night: 1, plays: [{ id: first.id }] }, true, word)
+      applyCommand(room, 1, { kind: 'lock', night: 1, plays: [{ id: original.id }] }, true, word)
+      applyCommand(room, 0, { kind: 'next', night: 1 }, true, word)
+      applyCommand(room, 1, { kind: 'next', night: 1 }, true, word)
+      const recovery = gameView(room, 1)!.hand.find(card => card.role === role)
+      const second = gameView(room, 0)!.hand.find(card => card.role === 'hunter' || card.role === 'knight')
+      if (!recovery || !second) continue
+      applyCommand(room, 0, { kind: 'lock', night: 2, plays: [{ id: second.id }] }, true, word)
+      applyCommand(room, 1, { kind: 'lock', night: 2, plays: [{ id: recovery.id }] }, true, word)
+      const pending = gameView(room, 1)!.prompt!
+      assert.deepEqual(pending.options, [original])
+      assert.equal(gameView(room, 0)!.prompt, null)
+      applyCommand(room, 1, { kind: 'answer', night: 2, step: pending.step, id: original.id }, true, word)
+      const player = replay(room).players[1]
+      assert.equal(player.discard.some(card => card.id === original.id), false)
+      if (role === 'keeper') assert.equal(player.deck[0].id, original.id)
+      else assert.ok(player.hand.some(card => card.id === original.id))
+      break
+    }
+  }
+})
+
 test('both human seats can resolve private prompts, finish night 15 and draw', () => {
   const { room, word } = started(passive, passive)
   let steps = 0

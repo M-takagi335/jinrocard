@@ -27,6 +27,28 @@ const formatCode = (code: string) => code.toUpperCase().replace(/[\s-]/g, '').sl
 type RequestPayload = Record<string, unknown>
 type PendingRequest = [payload: RequestPayload, preparation?: RequestPayload]
 
+type Prompt = NonNullable<NonNullable<OnlineView['game']>['prompt']>
+
+function OnlineChoice({ prompt, blocked, onConfirm }: { prompt: Prompt; blocked: boolean; onConfirm: (id: number) => void }) {
+  const [selected, setSelected] = useState<number>()
+  const heading = useRef<HTMLHeadingElement>(null)
+  useEffect(() => { heading.current?.scrollIntoView({ block: 'nearest' }) }, [])
+  const discard = prompt.title.includes('捨てる')
+  return <section className="choice" aria-label="カード効果の選択">
+    <h2 ref={heading}>{prompt.title.startsWith('共有者：') ? '共有者：捨てるカードを1枚選んでください' : prompt.title}</h2>
+    <div className="duel-cards hand-cards" aria-label="選択できるカード">
+      {prompt.options.map(entry => <CardTile compact key={entry.id} role={entry.role} selected={selected === entry.id}
+        onClick={() => { if (!blocked) setSelected(entry.id) }} />)}
+    </div>
+    <div className="hand-actions">
+      <button className="primary action" disabled={blocked || !prompt.options.some(entry => entry.id === selected)}
+        onClick={() => { if (selected !== undefined) onConfirm(selected) }}>
+        {discard ? 'このカードを捨てる' : 'このカードを戻す'}
+      </button>
+    </div>
+  </section>
+}
+
 export default function OnlineMatch({ options, onClose }: { options: MatchDeck[]; onClose: () => void }) {
   const [client] = useState(() => { try { return onlineClient() } catch { return null } })
   const [room, setRoom] = useState<OnlineView | null>(null)
@@ -53,6 +75,7 @@ export default function OnlineMatch({ options, onClose }: { options: MatchDeck[]
   const refreshFailures = useRef(0)
   const closedRooms = useRef(new Set<string>())
   const game = room?.game
+  const prompt = game?.phase === 'choice' ? game.prompt : null
   const chosen = (selected === 'room-current' ? room?.ownDeck : generated[selected as DeckType])
     ?? options.find(deck => deck.id === selected)?.cards ?? STARTER
   const deckMatches = room?.ownDeck?.join(',') === chosen.join(',')
@@ -301,6 +324,9 @@ export default function OnlineMatch({ options, onClose }: { options: MatchDeck[]
         <button className="quiet" onClick={() => setDialog('investigations')}>調査記録</button>
       </div>
       <div className="battle-layout"><section className="panel play-area">
+        {game.phase === 'choice' && (prompt ? <OnlineChoice key={room.id + ':' + game.night + ':' + prompt.step}
+          prompt={prompt} blocked={blocked} onConfirm={id => command({ kind: 'answer', id, night: game.night, step: prompt.step })} />
+          : <p role="status">相手のカード効果の処理待ち</p>)}
         {game.revealed.some(cards => cards.length) && <div className="reveal" aria-label="同時公開">
           <div className="reveal-columns">{[room.side, opponent].map((side, index) => <div key={side}>
             <h3>{index ? '相手' : 'あなた'}</h3><div className="duel-cards">{game.revealed[side].map((entry, i) => (
@@ -328,11 +354,6 @@ export default function OnlineMatch({ options, onClose }: { options: MatchDeck[]
           <div className="hand-actions"><button className="primary action" disabled={blocked || !hasGuesses || game.hand.length > 0 && !plays.length}
             onClick={() => command({ kind: 'lock', night: game.night, plays })}>{game.hand.length ? '選択を確定' : 'パスを確定'}</button></div>
         </>)}
-        {game.phase === 'choice' && (game.prompt ? <div className="choice"><h2>{game.prompt.title}</h2>
-          <div className="duel-cards">{game.prompt.options.map(entry => <CardTile compact key={entry.id} role={entry.role}
-            onInspect={() => setPeek(entry.role)} onClick={blocked ? undefined : () => command({
-              kind: 'answer', id: entry.id, night: game.night, step: game.prompt!.step,
-            })} />)}</div></div> : <p role="status">相手がカードを選択しています。</p>)}
         {game.phase === 'end' && <button className="primary action" disabled={blocked || game.next[room.side]}
           onClick={() => command({ kind: 'next', night: game.night })}>{game.next[room.side] ? '相手の確認待ち' : '次の夜へ'}</button>}
         {game.phase === 'finished' && <div className="result" role="status">
@@ -351,7 +372,7 @@ export default function OnlineMatch({ options, onClose }: { options: MatchDeck[]
         const count = viewed.discard.filter(card => card === role).length
         return count ? [{ role, count }] : []
       })} onInspect={setPeek} /> : <p>捨て札はありません。</p>}</Sheet>}
-    {freshInvestigation && <InvestigationPanel records={[freshInvestigation]} onInspect={setPeek}
+    {game?.phase !== 'choice' && freshInvestigation && <InvestigationPanel records={[freshInvestigation]} onInspect={setPeek}
       onConfirm={() => setConfirmed(previous => new Set([...previous, freshInvestigation.night + ':' + freshInvestigation.sourceId]))} />}
     {peek && <CardDetail role={peek} onClose={() => setPeek(undefined)} />}
   </>
