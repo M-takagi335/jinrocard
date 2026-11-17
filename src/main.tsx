@@ -11,6 +11,7 @@ import { DeckCardList } from './DeckCardList.tsx'
 import { DeckGenerator } from './DeckGenerator.tsx'
 import { MatchSetup } from './MatchSetup.tsx'
 import { NPC_DIFFICULTIES, type NpcDifficulty } from './strongNpc.ts'
+import { requestStrongestNpc } from './strongestNpcClient.ts'
 import type { DeckType } from './generateDeck.ts'
 import { cardsForMatch, generatedMatchType } from './matchDeck.ts'
 import { DeckComposition, Sheet } from './Sheet.tsx'
@@ -113,6 +114,17 @@ function App() {
   const [,refresh]=useReducer((n:number)=>n+1,0)
   useEffect(()=>{try{localStorage.setItem('jinro-deck',JSON.stringify(deck))}catch{/* unavailable */}},[deck])
   const phase=duel?.phase, night=duel?.night
+  useEffect(() => {
+    if (!duel || phase !== 'select') return
+    const view = duel.strongestNpcView()
+    if (!view) return
+    const controller = new AbortController()
+    void requestStrongestNpc(view, (Math.random() * 0x100000000) >>> 0, controller.signal,
+      plays => duel.prepareNpc(view.night, plays)).then(ready => {
+      if (ready && !controller.signal.aborted) refresh()
+    })
+    return () => controller.abort()
+  }, [duel, phase, night])
   useEffect(() => {
     if (!online) setMusic(page === 'tutorial' ? 2 : duel ? battleTrack(duel.night, duel.phase === 'finished') : 1)
   }, [online, page, duel, night, phase])
@@ -460,7 +472,9 @@ function App() {
                 </button>
               </div>
             ))}
-            <div className="hand-actions"><button className="primary action" disabled={(duel.players[0].hand.length>0&&!plays.length)||plays.some(p=>duel.players[0].hand.find(c=>c.id===p.id)?.role==='assassin'&&guessOptions.length>0&&!guessOptions.some(entry=>entry.role===p.guess))} onClick={()=>{if(duel.lock(plays)){playEffects(['confirm']);setPlays([]);refresh()}}}>{duel.players[0].hand.length?'選択を確定':'パスを確定'} →</button></div></>}
+            <div className="hand-actions"><button className="primary action" disabled={!duel.npcReady||(duel.players[0].hand.length>0&&!plays.length)||plays.some(p=>duel.players[0].hand.find(c=>c.id===p.id)?.role==='assassin'&&guessOptions.length>0&&!guessOptions.some(entry=>entry.role===p.guess))} onClick={()=>{if(duel.lock(plays)){playEffects(['confirm']);setPlays([]);refresh()}}}>{duel.players[0].hand.length?'選択を確定':'パスを確定'} →</button>
+              {!duel.npcReady && <span className="hint" role="status">NPCが考えています…</span>}
+            </div></>}
 
           {!pending && phase==='choice'&&duel.prompt&&<div className="choice"><h2>{duel.prompt.title}</h2><div className="duel-cards">{duel.prompt.options.map(c=><CardTile compact key={c.id} role={c.role} onClick={()=>{duel.answer(c.id);refresh()}} onInspect={() => inspect(c.role, { label: 'このカードを選択', run: () => { duel.answer(c.id); refresh() } })} />)}</div></div>}
           {!pending && phase==='end'&&<button className="primary action" onClick={()=>{duel.nextNight();refresh()}}>次の夜へ →</button>}

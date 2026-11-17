@@ -1,5 +1,6 @@
 import { card, NPC_DECK, ROLES, RULES, validDeck, type Role } from './cards.ts'
 import { chooseStrongNpc, type NpcDifficulty, type StrongNpcView } from './strongNpc.ts'
+import type { StrongestNpcView } from './strongestNpc.ts'
 export type Side = 0 | 1
 const sides = [0, 1] as const
 const other = (side: Side): Side => side === 0 ? 1 : 0
@@ -87,6 +88,7 @@ export class Duel {
   private rng:()=>number
   private npc:(view:NpcView)=>Play[]
   private npcPlays:Play[]=[]
+  private preparedNpcNight?: number
   private readonly publicPlays: [Role[][], Role[][]] = [[], []]
   private cardsInPlay = false
   private work:Generator<Prompt,void,number>|null=null
@@ -134,6 +136,20 @@ export class Duel {
   }
   strongNpcView(side: Side): StrongNpcView {
     return this.withPublicContext(side, this.npcView(side))
+  }
+  strongestNpcView(): StrongestNpcView | undefined {
+    if (this.twoHumans || this.npcDifficulty !== 'strongest' || this.phase !== 'select' || this.npcReady) return
+    return { ...this.strongNpcView(1), investigations: this.investigationsFor(1) }
+  }
+  get npcReady() {
+    return this.npcDifficulty !== 'strongest' || this.preparedNpcNight === this.night
+  }
+  prepareNpc(night: number, plays: Play[]) {
+    if (this.twoHumans || this.npcDifficulty !== 'strongest' || this.phase !== 'select' ||
+        this.night !== night || this.npcReady || !this.canLock(1, plays)) return false
+    this.npcPlays = plays.map(play => ({ ...play }))
+    this.preparedNpcNight = night
+    return true
   }
   private withPublicContext(side: Side, view: NpcView): StrongNpcView {
     const opponent = other(side)
@@ -244,7 +260,7 @@ export class Duel {
     this.write('第'+this.night+'夜が始まった。')
     for(const i of sides) this.draw(i,this.rules.nightlyDraw)
     for(const i of sides) yield* this.trim(i)
-    if (!this.twoHumans) {
+    if (!this.twoHumans && this.npcDifficulty !== 'strongest') {
       this.npcPlays=this.npc(this.npcView(1))
       if(!this.canLock(1,this.npcPlays)) throw new Error('NPCが無効なカードを選択しました。')
     }
@@ -259,7 +275,7 @@ export class Duel {
         (candidates.length === 0 ? p.guess === undefined : candidates.some(entry => entry.role === p.guess)))))
   }
   lock(plays:Play[]) {
-    return !this.twoHumans && this.revealPlays([plays, this.npcPlays])
+    return !this.twoHumans && this.npcReady && this.revealPlays([plays, this.npcPlays])
   }
   lockBoth(plays: [Play[], Play[]]) {
     return this.twoHumans && this.revealPlays(plays)

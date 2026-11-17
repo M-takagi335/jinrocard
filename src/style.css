@@ -751,11 +751,18 @@ html:has(.match-contents[open]) {
 }
 .match-difficulty-options {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 6px;
 }
 .match-difficulty-options button {
   min-height: 44px;
+  padding-inline: 4px;
+}
+.match-difficulty-options small {
+  display: block;
+  margin-top: 3px;
+  font-size: .72rem;
+  line-height: 1.3;
 }
 .match-difficulty-options [aria-pressed=true] {
   color: var(--gold);

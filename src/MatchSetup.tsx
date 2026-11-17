@@ -6,6 +6,11 @@ import { DECK_TYPES, PROFILES, type DeckType } from './generateDeck.ts'
 import { generatedMatchHint, generatedMatchType } from './matchDeck.ts'
 import { Sheet } from './Sheet.tsx'
 import { NPC_DIFFICULTIES, type NpcDifficulty } from './strongNpc.ts'
+const difficultyDescription: Record<NpcDifficulty, string> = {
+  standard: '基本的な判断で戦う',
+  strong: '公開情報を参考に戦う',
+  strongest: '公開情報と調査結果で翌夜まで先読み',
+}
 
 const tabs = ['おまかせ', 'マイデッキ'] as const
 const quickLabels: Record<DeckType, string> = {
@@ -142,7 +147,11 @@ export function MatchSetup({ options, quickId, myId, onSelect, npcDeck, onNpcTyp
           <div className="match-difficulty-options">
             {(Object.keys(NPC_DIFFICULTIES) as NpcDifficulty[]).map(difficulty => (
               <button type="button" className="quiet" key={difficulty} aria-pressed={npcDifficulty === difficulty}
-                onClick={() => onDifficulty(difficulty)}>{NPC_DIFFICULTIES[difficulty]}</button>
+                aria-label={NPC_DIFFICULTIES[difficulty]} aria-describedby={'difficulty-' + difficulty}
+                onClick={() => onDifficulty(difficulty)}>
+                {NPC_DIFFICULTIES[difficulty]}
+                <small id={'difficulty-' + difficulty}>{difficultyDescription[difficulty]}</small>
+              </button>
             ))}
           </div>
         </fieldset>
