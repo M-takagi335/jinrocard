@@ -1,7 +1,8 @@
-import { useReducer, useState } from 'react'
+import { useReducer, useRef, useState } from 'react'
 import { card, RULES, type Role } from './cards.ts'
 import { CardDetail } from './CardDetail.tsx'
 import { CardTile } from './CardTile.tsx'
+import { HpChanges } from './HpChanges.tsx'
 import type { Instance } from './duel.ts'
 import { canConfirmTutorial, createTutorialDuel, guidedRoles, lockTutorialNight } from './tutorial.ts'
 
@@ -19,6 +20,7 @@ export function Tutorial({ onHome }: { onHome: () => void }) {
   const [selected, setSelected] = useState<number[]>([])
   const [detail, setDetail] = useState<Role>()
   const [complete, setComplete] = useState(false)
+  const fighters = useRef<HTMLDivElement>(null)
   const [, refresh] = useReducer((value: number) => value + 1, 0)
   const selecting = duel.phase === 'select'
   const revealed = duel.phase === 'reveal'
@@ -37,8 +39,17 @@ export function Tutorial({ onHome }: { onHome: () => void }) {
 
   function confirm() {
     if (!lockTutorialNight(duel, plays)) return
-    if (duel.night > 1) duel.resolve()
     setSelected([])
+    if (duel.night > 1) resolve()
+    else refresh()
+  }
+
+  function resolve() {
+    duel.resolve()
+    if (([0, 1] as const).some(side => {
+      const { lost, gained } = duel.nightHpChange(side)
+      return lost > 0 || gained > 0
+    })) fighters.current?.scrollIntoView({ block: 'nearest', behavior: 'instant' })
     refresh()
   }
 
@@ -58,11 +69,13 @@ export function Tutorial({ onHome }: { onHome: () => void }) {
         <p>{instruction}</p>
         {duel.night === 4 && <p>夜終了時に手札が2枚未満なら2枚まで補充します。山札がなくなったら捨て札を使い直します。</p>}
       </section>
-      <div className="fighters">
-        {duel.players.map((player, side) => {
+      <div className="fighters" ref={fighters}>
+        {([0, 1] as const).map(side => {
+          const player = duel.players[side]
           const name = side === 0 ? 'あなた' : '練習相手'
           return <section className={'panel fighter side' + side} key={name}>
             <div className="fighter-line"><strong>{name}</strong><span><b>{player.hp}</b> / {RULES.hp} HP</span></div>
+            <HpChanges {...duel.nightHpChange(side)} animate />
             <progress aria-label={name + 'のHP'} value={player.hp} max={RULES.hp} />
             <div className="stats">山札 {player.deck.length}　手札 {player.hand.length}</div>
           </section>
@@ -92,7 +105,7 @@ export function Tutorial({ onHome }: { onHome: () => void }) {
           {results.length > 0 && <ul className="log" aria-label="今夜の結果">{results.map((entry, index) =>
             <li key={index}>{entry.text.replace('プレイヤー', 'あなた').replace('NPC', '練習相手')}</li>)}</ul>}
           {investigation && <p className="tutorial-investigation">調査結果（自分のみ）　{investigation.cards.map(entry => card(entry.role).name).join('、')}</p>}
-          {revealed ? <button className="primary action tutorial-action" onClick={() => { duel.resolve(); refresh() }}>カードの効果を見る</button>
+          {revealed ? <button className="primary action tutorial-action" onClick={resolve}>カードの効果を見る</button>
             : duel.night === 5 ? <button className="primary action tutorial-action" onClick={() => setComplete(true)}>チュートリアルを完了</button>
               : <button className="primary action tutorial-action" onClick={() => { duel.nextNight(); refresh() }}>次の夜へ</button>}
         </>}

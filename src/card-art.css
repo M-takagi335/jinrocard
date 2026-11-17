@@ -321,6 +321,27 @@
   color: #b6e6aa;
   background: #233a2c;
 }
+.hp-changes-animated {
+  min-height: 30px;
+  justify-content: flex-end;
+}
+.hp-changes-animated > span {
+  font-size: 20px;
+  line-height: 1.25;
+  animation: hp-float 1.1s ease-out forwards;
+}
+@keyframes hp-float {
+  0%, 65% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(-5px); visibility: hidden; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hp-changes-animated > span {
+    animation: hp-hide 1.1s step-end forwards;
+  }
+  @keyframes hp-hide {
+    to { visibility: hidden; }
+  }
+}
 .insight-status.drawn, .insight-status.unknown {
   color: var(--muted);
 }

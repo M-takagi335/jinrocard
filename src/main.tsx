@@ -16,6 +16,7 @@ import { cardsForMatch, generatedMatchType } from './matchDeck.ts'
 import { DeckComposition, Sheet } from './Sheet.tsx'
 import { AssassinPrediction } from './AssassinPrediction.tsx'
 import { Tutorial } from './Tutorial.tsx'
+import { HpChanges } from './HpChanges.tsx'
 import './style.css'
 import './card-art.css'
 
@@ -403,10 +404,7 @@ function App() {
                 <strong>{name}</strong>
                 <div className="fighter-hp">
                   <span><b>{player.hp}</b> / {duel.rules.hp} HP</span>
-                  <span className="hp-changes" aria-live="polite">
-                    {lost > 0 && <span className="hp-loss" aria-label={'今夜のHP減少 ' + lost}>−{lost}</span>}
-                    {gained > 0 && <span className="hp-gain" aria-label={'今夜のHP回復 ' + gained}>+{gained}</span>}
-                  </span>
+                  <HpChanges lost={lost} gained={gained} />
                 </div>
               </div>
               <progress value={player.hp} max={duel.rules.hp} aria-label={name + 'のHP'} />

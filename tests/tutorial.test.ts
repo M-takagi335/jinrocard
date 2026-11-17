@@ -15,6 +15,7 @@ function guidedRun() {
   assert.deepEqual(duel.players.map(player => player.hp), [20, 20])
   duel.resolve()
   assert.deepEqual(duel.players.map(player => player.hp), [17, 17])
+  assert.deepEqual([duel.nightHpChange(0), duel.nightHpChange(1)], [{ lost: 3, gained: 0 }, { lost: 3, gained: 0 }])
   const handSize = duel.players[0].hand.length
   assert.ok(duel.nextNight())
   assert.equal(duel.players[0].hand.length, handSize + 1)
@@ -55,4 +56,27 @@ test('every one- or two-card hand choice can finish the free tutorial night', ()
       assert.equal(duel.prompt, null)
     }
   }
+})
+
+test('tutorial HP totals include counterattack and recoil separately by fighter', () => {
+  const duel = guidedRun()
+  const plays = duel.players[0].hand.filter(card => card.role === 'trap' || card.role === 'dire')
+    .map(({ id }) => ({ id }))
+  assert.equal(plays.length, 2)
+  assert.ok(lockTutorialNight(duel, plays))
+  duel.resolve()
+  assert.deepEqual(duel.nightHpChange(0), { lost: 2, gained: 0 })
+  assert.deepEqual(duel.nightHpChange(1), { lost: 7, gained: 0 })
+  assert.deepEqual(duel.players.map(player => player.hp), [16, 7])
+})
+
+test('the tutorial engine records only the actual healing up to 20 HP', () => {
+  const duel = createTutorialDuel()
+  const witch = duel.players[0].hand.find(card => card.role === 'witch')!
+  const hunter = duel.players[1].hand.find(card => card.role === 'hunter')!
+  duel.players[0].hp = 18
+  assert.ok(duel.lockBoth([[{ id: witch.id }], [{ id: hunter.id }]]))
+  duel.resolve()
+  assert.equal(duel.players[0].hp, 20)
+  assert.deepEqual(duel.nightHpChange(0), { lost: 0, gained: 2 })
 })
