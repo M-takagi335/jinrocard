@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { playEffects, setMusic } from './audio.ts'
 import { battleTrack } from './soundEvents.ts'
-import { useDuelSound } from './useDuelSound.ts'
+import { useOnlineDuelSound } from './useOnlineDuelSound.ts'
 import { ROLES, RULES, STARTER, card, validDeck, type Role } from './cards.ts'
 import { AssassinPrediction } from './AssassinPrediction.tsx'
 import { CardDetail } from './CardDetail.tsx'
@@ -149,15 +149,16 @@ export default function OnlineMatch({ options, onClose }: { options: MatchDeck[]
   const refreshing = useRef(false)
   const refreshQueued = useRef(false)
   const closedRooms = useRef(new Set<string>())
+  const playArea = useRef<HTMLElement>(null)
   const game = room?.game
   useEffect(() => { setMusic(game ? battleTrack(game.night, game.phase === 'finished') : 1) }, [game?.night, game?.phase])
-  useDuelSound(room?.id, game && room ? {
+  useOnlineDuelSound(room?.id, game && room ? {
     night: game.night,
     revealed: game.revealed.some(cards => cards.length > 0),
     hp: game.players.map(player => player.hpChange),
     log: game.log,
     result: game.phase === 'finished' ? game.winner === 'draw' ? 'draw' : game.winner === room.side ? 'victory' : 'defeat' : undefined,
-  } : undefined, false, degraded)
+  } : undefined, playArea, degraded)
   const prompt = game?.phase === 'choice' ? game.prompt : null
   const chosenType = DECK_TYPES.find(type => selected === type)
   const generated = room && roomDecks?.id === room.id ? roomDecks.decks : undefined
@@ -215,17 +216,20 @@ export default function OnlineMatch({ options, onClose }: { options: MatchDeck[]
     if (!client || !connectedRoom) return
     const sync = () => { if (document.visibilityState === 'visible') void reload() }
     const wake = () => { if (document.visibilityState === 'visible') reconnect() }
+    const disconnect = () => setDegraded(true)
     void reload()
     const unsubscribe = client.subscribe(connectedRoom, sync)
     const timer = window.setInterval(sync, 12_000)
     document.addEventListener('visibilitychange', wake)
     window.addEventListener('online', wake)
+    window.addEventListener('offline', disconnect)
     window.addEventListener('pageshow', wake)
     return () => {
       unsubscribe()
       clearInterval(timer)
       document.removeEventListener('visibilitychange', wake)
       window.removeEventListener('online', wake)
+      window.removeEventListener('offline', disconnect)
       window.removeEventListener('pageshow', wake)
     }
   }, [client, connectedRoom, reload, reconnect])
@@ -435,7 +439,7 @@ export default function OnlineMatch({ options, onClose }: { options: MatchDeck[]
         <button className="quiet" onClick={() => setDialog('own-discard')}>自分の捨て札</button><button className="quiet" onClick={() => setDialog('enemy-discard')}>相手の捨て札</button>
         <button className="quiet" onClick={() => setDialog('investigations')}>調査記録</button>
       </div>
-      <div className="battle-layout"><section className="panel play-area">
+      <div className="battle-layout"><section ref={playArea} className="panel play-area">
         {game.phase === 'choice' && (prompt ? <OnlineChoice key={room.id + ':' + game.night + ':' + prompt.step}
           prompt={prompt} blocked={blocked} onConfirm={id => command({ kind: 'answer', id, night: game.night, step: prompt.step })} />
           : <p role="status">相手のカード効果の処理待ち</p>)}

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { loadAudioSettings } from '../src/audio.ts'
-import { battleTrack, newSoundCues, soundCues, type SoundFrame } from '../src/soundEvents.ts'
+import { battleTrack, newSoundCues, presentOnlineSound, soundCues, type SoundFrame } from '../src/soundEvents.ts'
 
 const start: SoundFrame = { night: 1, revealed: false, hp: [{ lost: 0, gained: 0 }], log: [
   { night: 1, text: 'プレイヤーAは1枚引いた。' },
@@ -48,4 +48,29 @@ test('audio settings restore volumes and mute flags and normalize malformed valu
     { music: .27, effects: .9, musicOn: false, effectsOn: false })
   assert.deepEqual(loadAudioSettings({ getItem: () => '{"music":2,"effects":-1,"musicOn":0}' }),
     { music: 1, effects: 0, musicOn: true, effectsOn: true })
+})
+
+test('online presentation consumes each kind once per night across partial and duplicate snapshots', () => {
+  const current = presentOnlineSound(1, ['night'])
+  assert.deepEqual(current.play, [])
+  const revealed = presentOnlineSound(1, ['night', 'reveal', 'defense', 'damage'], current.state)
+  assert.deepEqual(revealed.play, ['reveal', 'defense', 'damage'])
+  const partial = presentOnlineSound(1, ['night', 'reveal'], revealed.state)
+  assert.deepEqual(partial.play, [])
+  const resolved = presentOnlineSound(1, ['night', 'reveal', 'defense', 'damage', 'heal', 'special'], partial.state)
+  assert.deepEqual(resolved.play, ['heal', 'special'])
+  assert.deepEqual(presentOnlineSound(1, resolved.state.consumed, resolved.state).play, [])
+  const next = presentOnlineSound(2, ['night'], resolved.state)
+  assert.deepEqual(next.play, ['night'])
+  assert.deepEqual(presentOnlineSound(1, resolved.state.consumed, next.state), { state: next.state, play: [] })
+})
+
+test('online reloads, reconnects and skipped nights consume historical effects silently', () => {
+  const cues = soundCues({ ...reveal, hp: [{ lost: 3, gained: 2 }] })
+  const loaded = presentOnlineSound(4, cues)
+  assert.deepEqual(loaded.play, [])
+  const resumed = presentOnlineSound(5, cues, loaded.state, true)
+  assert.deepEqual(resumed.play, [])
+  assert.deepEqual(presentOnlineSound(5, cues, resumed.state).play, [])
+  assert.deepEqual(presentOnlineSound(7, cues, resumed.state).play, [])
 })

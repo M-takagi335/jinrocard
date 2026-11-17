@@ -55,3 +55,13 @@ export function newSoundCues(
   const played = previous?.night === current.night ? new Set(soundCues(previous)) : new Set<Effect>()
   return soundCues(current).filter(effect => !played.has(effect))
 }
+
+export type PresentedSound = { night: number; consumed: readonly Effect[] }
+
+export function presentOnlineSound(night: number, cues: readonly Effect[], previous?: PresentedSound, quiet = false) {
+  if (previous && night < previous.night) return { state: previous, play: [] }
+  const consumed = new Set(previous?.night === night ? previous.consumed : [])
+  const play = !previous || night > previous.night + 1 || quiet ? [] : cues.filter(cue => !consumed.has(cue))
+  for (const cue of cues) consumed.add(cue)
+  return { state: { night, consumed: [...consumed] }, play }
+}

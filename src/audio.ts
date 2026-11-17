@@ -32,6 +32,7 @@ let cueTime = 0
 let lastSelect = -Infinity
 let epoch = 0
 const buffers = new Map<Effect, Promise<AudioBuffer | undefined>>()
+const readyBuffers = new Map<Effect, AudioBuffer>()
 const base = './audio/'
 const soundUrl = (effect: Effect) => base + 'se/' + effects[effect] + '.mp3'
 export const audioEpoch = () => epoch
@@ -44,7 +45,10 @@ function loadEffect(effect: Effect) {
     buffers.set(effect, fetch(soundUrl(effect)).then(response => {
       if (!response.ok) throw new Error('Sound unavailable')
       return response.arrayBuffer()
-    }).then(data => audioContext.decodeAudioData(data)).catch(() => undefined))
+    }).then(data => audioContext.decodeAudioData(data)).then(buffer => {
+      readyBuffers.set(effect, buffer)
+      return buffer
+    }).catch(() => undefined))
   }
   return buffers.get(effect)
 }
@@ -109,6 +113,9 @@ export function saveAudioSettings(next: AudioSettings) {
   if (previous.effectsOn && !next.effectsOn) {
     epoch++
     cueTime = 0
+  }
+  if (!previous.effectsOn && next.effectsOn) {
+    for (const effect of Object.keys(effects) as Effect[]) void loadEffect(effect)
   }
   if (previous.musicOn !== next.musicOn) updateMusic()
   else applyLevel(gain)
@@ -178,5 +185,29 @@ export function playEffects(cues: readonly Effect[]) {
         void media.play().catch(() => {})
       }
     }, at - now)
+  }
+}
+
+// Screen-bound cues share an onset. Waiting for decoding or the operation
+// sound queue here would separate the audio from the already painted screen.
+export function playPresentedEffects(cues: readonly Effect[]) {
+  if (!enabled || !settings.effectsOn || document.hidden || context?.state !== 'running' || !effectGain) return
+  const ready = cues.flatMap(effect => {
+    const buffer = readyBuffers.get(effect)
+    if (!buffer) void loadEffect(effect)
+    return buffer ? [buffer] : []
+  })
+  if (!ready.length) return
+  const mix = context.createGain()
+  mix.gain.value = 1 / Math.sqrt(ready.length)
+  mix.connect(effectGain)
+  let remaining = ready.length
+  const at = context.currentTime
+  for (const buffer of ready) {
+    const source = context.createBufferSource()
+    source.buffer = buffer
+    source.connect(mix)
+    source.onended = () => { if (--remaining === 0) mix.disconnect() }
+    source.start(at)
   }
 }
