@@ -1,5 +1,6 @@
 import { useEffect, useReducer, useRef, useState, type ComponentType } from 'react'
 import { createRoot } from 'react-dom/client'
+import { Analytics } from '@vercel/analytics/react'
 import { card, CATEGORY, ROLES, RULES, STARTER, validDeck, type Role } from './cards.ts'
 import { Duel, type Instance, type Play, type Side } from './duel.ts'
 import { deckCardsError, deckNameLimit, exportDeck, importDeck, inspectSavedDecks, loadSavedDecks, matchDecks, storeSavedDecks, type MatchDeck, type NamedDeck, type SavedDeck } from './decks.ts'
@@ -648,4 +649,14 @@ function App() {
   </OpenSoundSettings.Provider>
 }
 initAudio()
-createRoot(document.getElementById('root')!).render(<App/>)
+createRoot(document.getElementById('root')!).render(
+  <>
+    <App />
+    <Analytics beforeSend={event => {
+      const url = new URL(event.url, window.location.origin)
+      if (!url.searchParams.has('room')) return event
+      url.searchParams.delete('room')
+      return { ...event, url: url.href }
+    }} />
+  </>,
+)
