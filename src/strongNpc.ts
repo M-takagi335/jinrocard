@@ -41,7 +41,7 @@ function preference(role: Role, hp: number, enemyHp: number, noHeal: boolean, ma
     case 'knight': return hp <= 6 ? 3.2 : 2.3
     case 'cat': case 'assassin': return 2.4
     case 'mad': return 2.6
-    case 'merchant': return hp <= 2 ? -10 : 1.2
+    case 'merchant': return hp <= card('merchant').recoil! ? -10 : 1.2
     default: return 1.3
   }
 }

@@ -38,7 +38,9 @@ export function soundCues(frame: SoundFrame): Effect[] {
   const cues: Effect[] = ['night']
   if (frame.revealed) cues.push('reveal')
   if (active.has('defense')) cues.push('defense')
-  if (frame.hp.some(change => change.lost > 0)) cues.push('damage')
+  const merchantCost = frame.log.reduce((sum, entry) => entry.night === frame.night
+    ? sum + Number(entry.text.match(/商人でHPを(\d+)失った/)?.[1] ?? 0) : sum, 0)
+  if (frame.hp.reduce((sum, change) => sum + change.lost, 0) > merchantCost) cues.push('damage')
   if (frame.hp.some(change => change.gained > 0)) cues.push('heal')
   if (active.has('special')) cues.push('special')
   if (frame.result === 'victory' || frame.result === 'defeat') cues.push(frame.result)

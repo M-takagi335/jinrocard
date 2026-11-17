@@ -35,7 +35,7 @@ function composition(roles: readonly Role[]): readonly DeckEntry[] {
 export type NpcView = { hand: readonly Instance[]; hp:number; enemyHp:number; max:number; noHeal:boolean; discard:readonly Instance[]; enemyDiscard:readonly Instance[]; enemyDeck:readonly DeckEntry[]; enemyRemaining:readonly DeckEntry[] }
 type Config = { hp:number; deckSize:number; opening:number; nightlyDraw:number; handRefill:number; handLimit:number; maxPlays:number; finalNight:number; finalTieBreak:'hp'|'draw' }
 type IntelDraw = Readonly<Partial<Record<'seer' | 'prophet', number>>>
-type Options = { rng?:()=>number; rules?:Partial<Config>; npc?: (view:NpcView)=>Play[]; intelDraw?: IntelDraw; npcDifficulty?: NpcDifficulty; twoHumans?: boolean; legacyCurse?: boolean }
+type Options = { rng?:()=>number; rules?:Partial<Config>; npc?: (view:NpcView)=>Play[]; intelDraw?: IntelDraw; npcDifficulty?: NpcDifficulty; twoHumans?: boolean; legacyCurse?: boolean; legacyMerchant?: boolean }
 export function shuffle<T>(input:readonly T[], rng:()=>number): T[] {
   const a = [...input]
   for(let i=a.length-1;i>0;i--) { const j=Math.floor(rng()*(i+1)); [a[i],a[j]]=[a[j],a[i]] }
@@ -47,7 +47,7 @@ function value(role:Role, hp:number, noHeal=false, discardCount=1) {
     case 'wolf': return 5
     case 'fox': return hp<=10 ? 6 : 4
     case 'witch': return noHeal ? -4 : hp<=16 ? 8 : hp<=18 ? 4 : 0
-    case 'merchant': return hp<=2 ? -20 : 2
+    case 'merchant': return hp<=card('merchant').recoil! ? -20 : 2
     case 'hunter': case 'trap': return 5
     case 'medium': case 'keeper': return discardCount ? 3 : -2
     default: return 3
@@ -57,8 +57,10 @@ export function chooseNpc(view:NpcView, rng:()=>number): Play[] {
   const ranked = view.hand.map(c => ({c, score:value(c.role,view.hp,view.noHeal,view.discard.length)+rng()*3}))
     .sort((a,b)=>b.score-a.score)
   const amount = Math.min(view.max, ranked.length, ranked[1]?.score >= 3 && rng() < .74 ? 2 : 1)
+  const move = ranked.slice(0,amount)
+  if (move.length === 2 && move.every(({ c }) => c.role === 'merchant') && view.hp <= 2 * card('merchant').recoil!) move.pop()
   const guesses = view.enemyRemaining.flatMap(({ role, count }) => Array<Role>(count).fill(role))
-  return ranked.slice(0,amount).map(({c})=>c.role==='assassin' && guesses.length
+  return move.map(({c})=>c.role==='assassin' && guesses.length
     ? {id:c.id,guess:guesses[Math.floor(rng()*guesses.length)]} : {id:c.id})
 }
 
@@ -67,6 +69,7 @@ export class Duel {
   readonly npcDifficulty: NpcDifficulty
   private readonly twoHumans: boolean
   private readonly legacyCurse: boolean
+  private readonly merchantCost: number
   private readonly investigations: [InvestigationSnapshot[], InvestigationSnapshot[]] = [[], []]
   private readonly revisions = [0, 0]
   private hpChanges: [HpChange, HpChange] = [{ lost: 0, gained: 0 }, { lost: 0, gained: 0 }]
@@ -96,6 +99,7 @@ export class Duel {
     this.npcDifficulty = options.npcDifficulty ?? 'standard'
     this.twoHumans = options.twoHumans ?? false
     this.legacyCurse = options.legacyCurse ?? false
+    this.merchantCost = options.legacyMerchant ? 2 : card('merchant').recoil!
     this.npc = options.npc ?? (this.npcDifficulty === 'strong'
       ? view => chooseStrongNpc(this.withPublicContext(1, view), this.rng)
       : view => chooseNpc(view, this.rng))
@@ -372,7 +376,7 @@ export class Duel {
     }
     // Merchant HP loss is paid simultaneously in this phase, before its draw.
     for(const i of sides) if(count(i,'merchant')) {
-      const lost = -this.changeHp(i, -(count(i, 'merchant') * card('merchant').recoil!))
+      const lost = -this.changeHp(i, -(count(i, 'merchant') * this.merchantCost))
       this.write(who[i]+'は商人でHPを'+lost+'失った（HP '+this.players[i].hp+'）。')
     }
     if(this.ko()) {this.clean();return}

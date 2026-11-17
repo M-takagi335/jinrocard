@@ -11,7 +11,7 @@ export type Command =
 type Event = [Play[], Play[]] | number | 'next'
 type Seats<T> = [T, T]
 export type RoomState = {
-  version: 1 | 2
+  version: 1 | 2 | 3
   phase: 'lobby' | 'playing' | 'finished'
   decks: Seats<Role[] | null>
   ready: Seats<boolean>
@@ -28,17 +28,19 @@ function demand(test: unknown, message: string): asserts test {
   if (!test) throw new RoomError(message)
 }
 const seats = [0, 1] as const
+const currentRulesVersion = 3
 export function newRoom(cards: Role[]): RoomState {
   demand(validDeck(cards), '有効な20枚のデッキを選んでください。')
-  return { version: 2, phase: 'lobby', decks: [[...cards], null], ready: [false, false],
+  return { version: currentRulesVersion, phase: 'lobby', decks: [[...cards], null], ready: [false, false],
     left: [false, false], locks: [null, null], next: [false, false], tape: [], events: [],
     receipts: [[], []], departure: null }
 }
 const randomWord = () => crypto.getRandomValues(new Uint32Array(1))[0]
 export function replay(room: RoomState, extend = false, word = randomWord): Duel {
-  if ((room.version !== 1 && room.version !== 2) || !room.decks[0] || !room.decks[1]) throw new Error('Invalid replay')
+  if ((room.version !== 1 && room.version !== 2 && room.version !== currentRulesVersion) || !room.decks[0] || !room.decks[1]) throw new Error('Invalid replay')
   let index = 0
-  const duel = new Duel(room.decks[0], room.decks[1], { twoHumans: true, legacyCurse: room.version === 1, rng: () => {
+  const duel = new Duel(room.decks[0], room.decks[1], { twoHumans: true,
+    legacyCurse: room.version === 1, legacyMerchant: room.version < 3, rng: () => {
     if (index === room.tape.length && extend) room.tape.push(word())
     const value = room.tape[index++]
     if (value === undefined) throw new Error('Missing randomness')
@@ -74,7 +76,7 @@ export function applyCommand(room: RoomState, side: Side, command: Command, join
     demand(joined && room.decks[side], '相手の参加と自分のデッキ選択が必要です。')
     room.ready[side] = true
     if (room.ready.every(Boolean)) {
-      room.version = 2
+      room.version = currentRulesVersion
       room.phase = 'playing'
       replay(room, true, word)
     }

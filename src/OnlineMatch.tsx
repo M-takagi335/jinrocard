@@ -406,7 +406,10 @@ export default function OnlineMatch({ options, onClose }: { options: MatchDeck[]
       <p role="status">{degraded ? '再接続中…' : !room.connected[opponent] && !room.left[opponent] ? '相手は切断中です。再接続をお待ちください。' : ''}</p>
       {(error || syncError) && <p className="notice" role="alert">{error || syncError}</p>}
       {(retry || degraded) && <button className="quiet" disabled={busy} onClick={() => retry ? void send(...retry) : reconnect()}>再試行</button>}
-      {room.rulesVersion === 1 && <p className="hint">この対戦は開始時のルールを使用します。呪術師は相手の次の夜のHP回復を無効化します。</p>}
+      {room.rulesVersion && room.rulesVersion < 3 && <p className="hint">
+        この対戦は開始時のルールを使用します。商人の消費は2HPです。
+        {room.rulesVersion === 1 && '呪術師は相手の次の夜のHP回復を無効化します。'}
+      </p>}
       <div className="fighters">
         {[room.side, opponent].map((side, index) => <section key={side} className={'panel fighter side' + index}>
           <div className="fighter-line"><strong>{index ? '相手' : 'あなた'}</strong><span><b>{game.players[side].hp}</b> / {RULES.hp} HP</span></div>

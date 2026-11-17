@@ -72,14 +72,14 @@ test('dire wolf recoil cannot trigger the same side cat; merchant pays after hea
   A.play()
   assert.deepEqual(A.game.players.map(p=>p.hp),[18,20])
   const B=rig(['merchant'],['hunter'])
-  B.game.players[0].hp=2
+  B.game.players[0].hp=1
   B.play()
   assert.equal(B.game.winner,1)
   assert.equal(B.game.players[0].hand.length,5)
   const C=rig(['merchant','witch'],['hunter'])
   C.game.players[0].hp=2
   C.play()
-  assert.equal(C.game.players[0].hp,4)
+  assert.equal(C.game.players[0].hp,5)
 })
 test('mad cancels a deterministic target and does nothing against a single card',()=>{
   const A=rig(['mad'],['wolf','dire'])
@@ -664,7 +664,7 @@ test('night HP totals separate actual losses and healing, clamp at bounds, and r
 
   const self = rig(['dire', 'merchant'], ['hunter'])
   self.play()
-  assert.deepEqual(self.game.nightHpChange(0), { lost: 4, gained: 0 })
+  assert.deepEqual(self.game.nightHpChange(0), { lost: 3, gained: 0 })
   assert.deepEqual(self.game.nightHpChange(1), { lost: 0, gained: 0 })
 
   const cancelled = rig(['witch', 'wolf'], ['mad'])

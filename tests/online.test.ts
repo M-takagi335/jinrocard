@@ -25,14 +25,14 @@ test('new Curse rules and in-flight legacy rooms both replay with their original
   const second = deck(['witch', 'witch', 'hunter'])
   const word = () => 0xffffffff
   const room = newRoom(first)
-  assert.equal(room.version, 2)
+  assert.equal(room.version, 3)
   // A room created earlier but not yet started adopts the current version.
   room.version = 1
   applyCommand(room, 1, { kind: 'deck', cards: second }, true, word)
   applyCommand(room, 0, { kind: 'ready' }, true, word)
   applyCommand(room, 1, { kind: 'ready' }, true, word)
-  assert.equal(room.version, 2)
-  for (const version of [1, 2] as const) {
+  assert.equal(room.version, 3)
+  for (const version of [1, 2, 3] as const) {
     const live = { ...structuredClone(room), version }
     const play = (side: 0 | 1, ...roles: Role[]) => {
       const view = gameView(live, side)!
@@ -45,7 +45,7 @@ test('new Curse rules and in-flight legacy rooms both replay with their original
     play(1, 'witch')
     const firstView = gameView(live, 1)!
     assert.deepEqual(firstView.players[1].hpChange, { lost: 3, gained: version === 1 ? 3 : 0 })
-    assert.equal(firstView.revealed[1][0].recoveryBlocked, version === 2 ? true : undefined)
+    assert.equal(firstView.revealed[1][0].recoveryBlocked, version === 1 ? undefined : true)
     assert.equal(firstView.revealed[1][0].disabled, false)
     assert.deepEqual(gameView(JSON.parse(JSON.stringify(live)), 1), firstView)
     for (const side of [0, 1] as const) applyCommand(live, side, { kind: 'next', night: 1 }, true, word)
