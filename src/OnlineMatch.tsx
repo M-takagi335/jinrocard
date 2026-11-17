@@ -3,6 +3,7 @@ import { playEffects, setMusic } from './audio.ts'
 import { battleTrack } from './soundEvents.ts'
 import { useDuelSound } from './useDuelSound.ts'
 import { ROLES, RULES, STARTER, card, validDeck, type Role } from './cards.ts'
+import { AssassinPrediction } from './AssassinPrediction.tsx'
 import { CardDetail } from './CardDetail.tsx'
 import { CardTile } from './CardTile.tsx'
 import { DeckCardList } from './DeckCardList.tsx'
@@ -141,6 +142,7 @@ export default function OnlineMatch({ options, onClose }: { options: MatchDeck[]
   const [selected, setSelected] = useState('standard')
   const [roomDecks, setRoomDecks] = useState<RoomDecks>()
   const [plays, setPlays] = useState<Play[]>([])
+  const [predictionId, setPredictionId] = useState<number>()
   const [dialog, setDialog] = useState<'investigations' | 'own' | 'enemy' | 'own-discard' | 'enemy-discard'>()
   const [confirmed, setConfirmed] = useState<Set<string>>(() => new Set())
   const writeInFlight = useRef(false)
@@ -227,7 +229,14 @@ export default function OnlineMatch({ options, onClose }: { options: MatchDeck[]
       window.removeEventListener('pageshow', wake)
     }
   }, [client, connectedRoom, reload, reconnect])
-  useEffect(() => { setPlays([]) }, [game?.night, room?.id])
+  useEffect(() => {
+    setPlays([])
+    setPredictionId(undefined)
+  }, [game?.night, room?.id])
+  const canSelect = !!room && game?.phase === 'select' && !game.locked[room.side]
+  useEffect(() => {
+    if (!canSelect) setPredictionId(undefined)
+  }, [canSelect])
   useEffect(() => {
     if (room) {
       const restored = restoreRoomDecks(room.id)
@@ -362,7 +371,9 @@ export default function OnlineMatch({ options, onClose }: { options: MatchDeck[]
   const freshInvestigation = game?.investigations.find(record => record.night === game.night
     && !confirmed.has(record.night + ':' + record.sourceId))
   const guesses = game?.players[opponent].remaining ?? []
-  const hasGuesses = plays.every(play => game?.hand.find(card => card.id === play.id)?.role !== 'assassin' || !guesses.length || play.guess)
+  const assassins = plays.filter(play => game?.hand.some(entry => entry.id === play.id && entry.role === 'assassin'))
+  const hasGuesses = !guesses.length || assassins.every(play => guesses.some(entry => entry.role === play.guess))
+  const prediction = canSelect ? assassins.find(play => play.id === predictionId) : undefined
   const viewedSide = dialog === 'own' || dialog === 'own-discard' ? room?.side : opponent
   const viewed = viewedSide === undefined ? undefined : game?.players[viewedSide]
   if (!client) return <Sheet title="オンライン対戦" className="online-sheet" onClose={() => { clearInvite(); onClose() }}><p>現在オンライン対戦を利用できません。NPC対戦は引き続き遊べます。</p></Sheet>
@@ -443,14 +454,14 @@ export default function OnlineMatch({ options, onClose }: { options: MatchDeck[]
             <CardTile compact key={entry.id} role={entry.role} selected={plays.some(play => play.id === entry.id)}
               onInspect={() => setPeek(entry.role)} onClick={() => toggle(entry.id)} />
           ))}</div>
-          {plays.filter(play => game.hand.find(card => card.id === play.id)?.role === 'assassin' && guesses.length).map(play => (
-            <label className="prediction" key={play.id}>暗殺者の予想
-              <select value={play.guess ?? ''} onChange={event => setPlays(previous => previous.map(item =>
-                item.id === play.id ? { ...item, guess: event.target.value as Role || undefined } : item))}>
-                <option value="">役職を選ぶ</option>
-                {guesses.map(({ role, count }) => <option key={role} value={role}>{card(role).name} · {count}枚</option>)}
-              </select>
-            </label>
+          {assassins.map((play, index) => (
+            <div className="prediction" key={play.id}>
+              <span>暗殺者 {index + 1} の予想</span>
+              <button className="quiet" aria-haspopup="dialog" disabled={busy || !!retry || !guesses.length}
+                onClick={() => setPredictionId(play.id)}>
+                {play.guess ? card(play.guess).name + '（変更）' : guesses.length ? '役職を選ぶ' : '予想できる役職なし'}
+              </button>
+            </div>
           ))}
           <div className="hand-actions"><button className="primary action" disabled={blocked || !hasGuesses || game.hand.length > 0 && !plays.length}
             onClick={() => command({ kind: 'lock', night: game.night, plays })}>{game.hand.length ? '選択を確定' : 'パスを確定'}</button></div>
@@ -479,6 +490,12 @@ export default function OnlineMatch({ options, onClose }: { options: MatchDeck[]
       })} onInspect={setPeek} /> : <p>捨て札はありません。</p>}</Sheet>}
     {game?.phase !== 'choice' && freshInvestigation && <InvestigationPanel records={[freshInvestigation]} onInspect={setPeek}
       onConfirm={() => setConfirmed(previous => new Set([...previous, freshInvestigation.night + ':' + freshInvestigation.sourceId]))} />}
+    {prediction && <AssassinPrediction key={prediction.id} entries={guesses} initial={prediction.guess}
+      onConfirm={role => {
+        setPlays(previous => previous.map(play => play.id === prediction.id ? { ...play, guess: role } : play))
+        setPredictionId(undefined)
+      }}
+      onClose={() => setPredictionId(undefined)} />}
     {peek && <CardDetail role={peek} onClose={() => setPeek(undefined)} />}
   </>
 }
