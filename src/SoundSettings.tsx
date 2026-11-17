@@ -9,7 +9,7 @@ export function SoundSettings({ onClose }: { onClose: () => void }) {
     saveAudioSettings(next)
     setSettings(next)
   }
-  return <Sheet title="音量設定" onClose={onClose}>
+  return <Sheet title="音量設定" className="sound-sheet" onClose={onClose} soundControl={false}>
     <div className="sound-settings">
       <label><input type="checkbox" checked={settings.musicOn} onChange={event => update({ musicOn: event.target.checked })} /> BGMを再生</label>
       <label>BGM音量 <span>{Math.round(settings.music * 100)}%</span>

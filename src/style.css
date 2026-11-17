@@ -102,6 +102,32 @@
 .sheet-header button {
   flex-shrink: 0;
 }
+.top {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+.top-inner {
+  gap: 8px;
+}
+.top-actions, .sheet-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+.sound-settings-button {
+  display: inline-grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  color: var(--gold);
+}
+html:has(.sound-sheet[open]) {
+  overflow: hidden;
+}
 .sheet-body {
   overflow: auto;
   overscroll-behavior: contain;

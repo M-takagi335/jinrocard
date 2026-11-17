@@ -20,6 +20,7 @@ import { HpChanges } from './HpChanges.tsx'
 import { initAudio, playEffects, setMusic } from './audio.ts'
 import { battleTrack } from './soundEvents.ts'
 import { SoundSettings } from './SoundSettings.tsx'
+import { OpenSoundSettings, SoundSettingsButton } from './SoundSettingsButton.tsx'
 import { localSoundFrame, useDuelSound } from './useDuelSound.ts'
 import './style.css'
 import './card-art.css'
@@ -310,8 +311,13 @@ function App() {
   const deckError = deckCardsError(deck)
   const missing = RULES.deckSize - deck.length
   const libraryPreview = saved.find(entry => entry.id === libraryId)
-  return <>
-    <header className="top"><div className="wrap top-inner"><span className="brand"><span className="sigil">◈</span> 人狼デュエル</span>{page === 'builder' && <button className="quiet" onClick={home}>ホームへ戻る</button>}</div></header>
+  return <OpenSoundSettings.Provider value={() => setSoundSettings(true)}>
+    <header className="top"><div className="wrap top-inner"><span className="brand"><span className="sigil">◈</span> 人狼デュエル</span>
+      <div className="top-actions">
+        {page === 'builder' && <button className="quiet" onClick={home}>ホームへ戻る</button>}
+        <SoundSettingsButton />
+      </div>
+    </div></header>
     <main className="wrap">
       {online ? Online ? <Online options={matchDecks(deck, name, saved)} onClose={() => setOnline(false)} />
         : <Sheet title="オンライン対戦" onClose={() => setOnline(false)}><p role="status">{onlineLoadError
@@ -333,7 +339,6 @@ function App() {
               </div>
               <div className="home-links">
                 <button className="quiet" aria-expanded={rules} onClick={() => setRules(value => !value)}>遊び方</button>
-                <button className="quiet" aria-haspopup="dialog" onClick={() => setSoundSettings(true)}>音量設定</button>
               </div>
             </div>
             <div className="hero-index" aria-hidden="true">Ⅰ <span>／</span> ⅩⅤ</div>
@@ -625,7 +630,7 @@ function App() {
       {preview && <CardDetail {...preview} onClose={() => setPreview(null)} />}
       {soundSettings && <SoundSettings onClose={() => setSoundSettings(false)} />}
     </main><footer className="wrap footer">◈　人狼デュエル <span>WEREWOLF DUEL</span></footer>
-  </>
+  </OpenSoundSettings.Provider>
 }
 initAudio()
 createRoot(document.getElementById('root')!).render(<App/>)
