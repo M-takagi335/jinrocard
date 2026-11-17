@@ -6,7 +6,7 @@ const other = (side: Side): Side => side === 0 ? 1 : 0
 const who = ['プレイヤー', 'NPC']
 export type Instance = { id: number; role: Role }
 export type Play = { id: number; guess?: Role }
-type Revealed = Instance & Play & { disabled: boolean }
+type Revealed = Instance & Play & { disabled: boolean; recoveryBlocked?: true }
 type Status = { noHeal: boolean; limited: boolean }
 const fresh = (): Status => ({ noHeal:false, limited:false })
 type Player = { hp:number; hand:Instance[]; deck:Instance[]; discard:Instance[]; status:Status; next:Status }
@@ -359,7 +359,12 @@ export class Duel {
 
     for(const i of sides) if(count(i,'witch')) {
       const p=this.players[i]
-      if(p.status.noHeal || (!this.legacyCurse && count(other(i),'curse'))) this.write(who[i]+'の回復は呪術師に無効化された。')
+      if(p.status.noHeal || (!this.legacyCurse && count(other(i),'curse'))) {
+        if(p.hp < this.rules.hp) {
+          for(const c of active[i]) if(c.role==='witch') c.recoveryBlocked=true
+          this.write(who[i]+'の回復は呪術師に無効化された。')
+        }
+      }
       else {
         const gained = this.changeHp(i, count(i, 'witch') * card('witch').power!)
         this.write(who[i]+'はHPを'+gained+'回復した。')

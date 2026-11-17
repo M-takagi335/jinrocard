@@ -38,10 +38,11 @@ function RoleImage({ name, path, eager }: { name: string; path: string; eager: b
   )
 }
 
-export function CardTile({ role, selected = false, disabled = false, onClick, onInspect, detail, glowing = false, compact = false }: {
+export function CardTile({ role, selected = false, disabled = false, recoveryBlocked = false, onClick, onInspect, detail, glowing = false, compact = false }: {
   role: Role
   selected?: boolean
   disabled?: boolean
+  recoveryBlocked?: boolean
   onClick?: () => void
   onInspect?: () => void
   detail?: string
@@ -49,6 +50,7 @@ export function CardTile({ role, selected = false, disabled = false, onClick, on
   compact?: boolean
 }) {
   const spec = card(role)
+  const status = disabled ? '効果無効' : recoveryBlocked ? '回復無効' : detail
   const body = (
     <>
       <Art role={role} />
@@ -56,11 +58,11 @@ export function CardTile({ role, selected = false, disabled = false, onClick, on
       <span className="card-caption">
         <span className="card-name">{spec.name}</span>
         {compact && <span className="compact-effect">{CARD_SUMMARY[role]}</span>}
-        {detail && <span className="card-detail">{detail}</span>}
+        {status && <span className="card-detail">{status}</span>}
       </span>
     </>
   )
-  const className = ['card', 'card-face', spec.category, compact && 'is-compact', selected && 'selected', disabled && 'inactive', glowing && 'insight-glow'].filter(Boolean).join(' ')
+  const className = ['card', 'card-face', spec.category, compact && 'is-compact', selected && 'selected', (disabled || recoveryBlocked) && 'inactive', glowing && 'insight-glow'].filter(Boolean).join(' ')
   const faceAction = onInspect ?? onClick
   const face = faceAction ? (
     <button type="button" className={className} onClick={faceAction}

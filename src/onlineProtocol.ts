@@ -121,7 +121,7 @@ export function gameView(room: RoomState, side: Side) {
     phase: room.phase === 'finished' ? 'finished' : duel.phase,
     winner: room.departure === null ? duel.winner : (1 - room.departure) as Side,
     reason: room.departure === null ? duel.reason : '対戦相手が退出しました。',
-    revealed: duel.revealed.map(cards => cards.map(({ role, disabled, guess }) => ({ role, disabled, guess }))),
+    revealed: duel.revealed.map(cards => cards.map(({ role, disabled, guess, recoveryBlocked }) => ({ role, disabled, guess, recoveryBlocked }))),
     investigations: duel.investigationsFor(side),
     log: duel.log.filter(event => event.privateTo === undefined || event.privateTo === side)
       .map(({ night, text }) => ({ night, text: text.replace(/プレイヤー|NPC/g, name => name === 'NPC' ? 'プレイヤーB' : 'プレイヤーA') })),

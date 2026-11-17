@@ -1,8 +1,9 @@
 import { useReducer, useRef, useState } from 'react'
-import { card, RULES, type Role } from './cards.ts'
+import { RULES, type Role } from './cards.ts'
 import { CardDetail } from './CardDetail.tsx'
 import { CardTile } from './CardTile.tsx'
 import { HpChanges } from './HpChanges.tsx'
+import { InvestigationPanel } from './InvestigationPanel.tsx'
 import { playEffects } from './audio.ts'
 import { localSoundFrame, useDuelSound } from './useDuelSound.ts'
 import type { Instance } from './duel.ts'
@@ -22,6 +23,8 @@ export function Tutorial({ onHome }: { onHome: () => void }) {
   const [selected, setSelected] = useState<number[]>([])
   const [detail, setDetail] = useState<Role>()
   const [complete, setComplete] = useState(false)
+  const [confirmedNight, setConfirmedNight] = useState<number>()
+  const [reopened, setReopened] = useState(false)
   const fighters = useRef<HTMLDivElement>(null)
   const [, refresh] = useReducer((value: number) => value + 1, 0)
   useDuelSound(duel, localSoundFrame(duel, false), true)
@@ -34,6 +37,7 @@ export function Tutorial({ onHome }: { onHome: () => void }) {
   const results = duel.log.filter(entry => entry.night === duel.night && entry.privateTo === undefined &&
     !entry.text.includes('を使用した') && !entry.text.includes('夜が始まった') && !entry.text.includes('枚引いた'))
   const investigation = duel.investigationsFor(0).find(record => record.night === duel.night)
+  const showInvestigation = investigation && (confirmedNight !== duel.night || reopened)
 
   function toggle(entry: Instance) {
     if (selected.includes(entry.id)) setSelected(selected.filter(id => id !== entry.id))
@@ -105,19 +109,22 @@ export function Tutorial({ onHome }: { onHome: () => void }) {
             <div className="reveal-columns">{duel.revealed.map((cards, side) => (
               <div key={side}><h3>{side === 0 ? 'あなた' : '練習相手'}</h3>
                 <div className="duel-cards">{cards.map(entry => <CardTile compact role={entry.role} key={entry.id}
-                  disabled={entry.disabled} onInspect={() => setDetail(entry.role)} />)}</div>
+                  disabled={entry.disabled} recoveryBlocked={entry.recoveryBlocked} onInspect={() => setDetail(entry.role)} />)}</div>
               </div>
             ))}</div>
           </div>
           {results.length > 0 && <ul className="log" aria-label="今夜の結果">{results.map((entry, index) =>
             <li key={index}>{entry.text.replace('プレイヤー', 'あなた').replace('NPC', '練習相手')}</li>)}</ul>}
-          {investigation && <p className="tutorial-investigation">調査結果（自分のみ）　{investigation.cards.map(entry => card(entry.role).name).join('、')}</p>}
+          {investigation && !showInvestigation && <button className="quiet" aria-haspopup="dialog" onClick={() => setReopened(true)}>調査結果をもう一度見る</button>}
           {revealed ? <button className="primary action tutorial-action" onClick={resolve}>カードの効果を見る</button>
             : duel.night === 5 ? <button className="primary action tutorial-action" onClick={() => setComplete(true)}>チュートリアルを完了</button>
-              : <button className="primary action tutorial-action" onClick={() => { duel.nextNight(); refresh() }}>次の夜へ</button>}
+              : <button className="primary action tutorial-action" disabled={!!showInvestigation} onClick={() => { duel.nextNight(); refresh() }}>次の夜へ</button>}
         </>}
       </section>
     </>}
-    {detail && <CardDetail role={detail} onClose={() => setDetail(undefined)} />}
+    {showInvestigation ? <InvestigationPanel tutorial records={[investigation]} onConfirm={() => {
+      setConfirmedNight(duel.night)
+      setReopened(false)
+    }} /> : detail && <CardDetail role={detail} onClose={() => setDetail(undefined)} />}
   </section>
 }

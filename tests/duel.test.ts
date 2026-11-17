@@ -111,6 +111,11 @@ test('Curse blocks Witch this night, including alongside a successfully defended
   assert.deepEqual(game.nightHpChange(1), { lost: 0, gained: 0 })
   assert.ok(game.log.some(event => event.text.includes('狩人が襲撃を防いだ')))
   assert.ok(game.log.some(event => event.text.includes('回復は呪術師に無効化')))
+  assert.deepEqual(game.revealed[1].map(c => [c.role,c.disabled,c.recoveryBlocked]), [
+    ['witch',false,true], ['hunter',false,undefined],
+  ])
+  assert.ok(game.nextNight())
+  assert.deepEqual(game.revealed,[[],[]])
 })
 
 test('two Curses do not extend into the next night and produce no blocked-heal log when there is no Witch', () => {
@@ -133,7 +138,28 @@ test('Mad disables Curse before the Witch can heal', () => {
   assert.ok(game.lock(game.players[0].hand.slice(0,2).map(({ id }) => ({ id }))))
   game.resolve()
   assert.equal(game.revealed[0][1].disabled, true)
+  assert.equal(game.revealed[1][0].recoveryBlocked, undefined)
   assert.deepEqual(game.nightHpChange(1), { lost: 3, gained: 3 })
+})
+
+test('Curse marks only resolving Witches with healing room and leaves Mad flags separate', () => {
+  for (const [hp, enemy, ally, expected] of [
+    [20, ['witch','hunter'], 'wolf', []],
+    [16, ['witch','witch'], 'hunter', [0,1]],
+    [16, ['witch','witch'], 'mad', [0]],
+    [2, ['witch','hunter'], 'assassin', []],
+  ] as const) {
+    const { game } = rig([ally], ['witch','hunter'])
+    game.players[0].hand[1].role='curse'
+    game.players[1].hand[1].role=enemy[1]
+    game.players[1].hp=hp
+    assert.ok(game.lock(game.players[0].hand.slice(0,2).map(({ id,role }) => ({ id, guess: role==='assassin'?'hunter':undefined }))))
+    game.resolve()
+    assert.deepEqual(game.revealed[1].flatMap((c,i)=>c.recoveryBlocked?[i]:[]),expected)
+    assert.ok(game.revealed[1].every(c=> !c.disabled || !c.recoveryBlocked))
+    assert.equal(game.log.some(e=>e.text.includes('回復は呪術師に無効化')),expected.length>0)
+    assert.equal(game.nightHpChange(1).gained,0)
+  }
 })
 test('recovery excludes currently played cards and preserves instance identity',()=>{
   for(const role of ['medium','keeper'] as const){

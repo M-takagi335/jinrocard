@@ -429,7 +429,7 @@ export default function OnlineMatch({ options, onClose }: { options: MatchDeck[]
           <div className="reveal-columns">{[room.side, opponent].map((side, index) => <div key={side}>
             <h3>{index ? '相手' : 'あなた'}</h3><div className="duel-cards">{game.revealed[side].map((entry, i) => (
               <CardTile compact key={game.night + ':' + i} role={entry.role} onInspect={() => setPeek(entry.role)}
-                disabled={entry.disabled} detail={entry.disabled ? '効果無効' : entry.guess ? '予想：' + card(entry.guess).name : undefined} />
+                disabled={entry.disabled} recoveryBlocked={entry.recoveryBlocked} detail={entry.guess ? '予想：' + card(entry.guess).name : undefined} />
             ))}</div>
           </div>)}</div>
         </div>}
