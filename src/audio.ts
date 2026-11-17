@@ -32,23 +32,31 @@ let cueTime = 0
 let lastSelect = -Infinity
 let epoch = 0
 const buffers = new Map<Effect, Promise<AudioBuffer | undefined>>()
+const retryEffectAfter = new Map<Effect, number>()
 const readyBuffers = new Map<Effect, AudioBuffer>()
 const base = './audio/'
 const soundUrl = (effect: Effect) => base + 'se/' + effects[effect] + '.mp3'
 export const audioEpoch = () => epoch
 export const audioSettings = () => settings
 
-function loadEffect(effect: Effect) {
+function loadEffect(effect: Effect, preload = false) {
   const audioContext = context
   if (!audioContext) return
+  const retryAfter = retryEffectAfter.get(effect)
+  if (retryAfter !== undefined && (preload || performance.now() < retryAfter)) return Promise.resolve(undefined)
   if (!buffers.has(effect)) {
-    buffers.set(effect, fetch(soundUrl(effect)).then(response => {
+    buffers.set(effect, fetch(soundUrl(effect), retryAfter === undefined ? undefined : { cache: 'reload' }).then(response => {
       if (!response.ok) throw new Error('Sound unavailable')
       return response.arrayBuffer()
     }).then(data => audioContext.decodeAudioData(data)).then(buffer => {
+      retryEffectAfter.delete(effect)
       readyBuffers.set(effect, buffer)
       return buffer
-    }).catch(() => undefined))
+    }).catch(() => {
+      buffers.delete(effect)
+      retryEffectAfter.set(effect, performance.now() + 500)
+      return undefined
+    }))
   }
   return buffers.get(effect)
 }
@@ -115,7 +123,7 @@ export function saveAudioSettings(next: AudioSettings) {
     cueTime = 0
   }
   if (!previous.effectsOn && next.effectsOn) {
-    for (const effect of Object.keys(effects) as Effect[]) void loadEffect(effect)
+    for (const effect of Object.keys(effects) as Effect[]) void loadEffect(effect, true)
   }
   if (previous.musicOn !== next.musicOn) updateMusic()
   else applyLevel(gain)
@@ -137,7 +145,7 @@ export function initAudio() {
         effectGain.gain.value = settings.effectsOn ? settings.effects : 0
         context.createMediaElementSource(player).connect(musicGain).connect(context.destination)
         effectGain.connect(context.destination)
-        if (settings.effectsOn) for (const effect of Object.keys(effects) as Effect[]) void loadEffect(effect)
+        if (settings.effectsOn) for (const effect of Object.keys(effects) as Effect[]) void loadEffect(effect, true)
       } catch { /* Native media playback remains available. */ }
     }
     if (context?.state !== 'running') void context?.resume().catch(() => {})

@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { playEffects, setMusic } from './audio.ts'
 import { battleTrack } from './soundEvents.ts'
 import { useOnlineDuelSound } from './useOnlineDuelSound.ts'
+import { onlineRequestLifetime } from './onlineRequestLifetime.ts'
 import { ROLES, RULES, STARTER, card, validDeck, type Role } from './cards.ts'
 import { AssassinPrediction } from './AssassinPrediction.tsx'
 import { CardDetail } from './CardDetail.tsx'
@@ -147,6 +148,16 @@ export default function OnlineMatch({ options, onClose }: { options: MatchDeck[]
   const [dialog, setDialog] = useState<'investigations' | 'own' | 'enemy' | 'own-discard' | 'enemy-discard'>()
   const [confirmed, setConfirmed] = useState<Set<string>>(() => new Set())
   const writeInFlight = useRef(false)
+  const [requests] = useState(onlineRequestLifetime)
+  const activeRoom = useRef(connectedRoom)
+  useLayoutEffect(() => {
+    return requests.invalidate
+  }, [requests])
+  const close = () => {
+    requests.invalidate()
+    clearInvite()
+    onClose()
+  }
   const refreshing = useRef(false)
   const refreshQueued = useRef(false)
   const closedRooms = useRef(new Set<string>())
@@ -175,7 +186,9 @@ export default function OnlineMatch({ options, onClose }: { options: MatchDeck[]
   }, [])
 
   const reload = useCallback(async () => {
-    if (!client || !connectedRoom || closedRooms.current.has(connectedRoom)) return
+    if (!client || !connectedRoom || activeRoom.current !== connectedRoom || closedRooms.current.has(connectedRoom)) return
+    const isOpen = requests.capture()
+    const isCurrent = () => isOpen() && activeRoom.current === connectedRoom
     if (refreshing.current) {
       refreshQueued.current = true
       return
@@ -183,15 +196,16 @@ export default function OnlineMatch({ options, onClose }: { options: MatchDeck[]
     refreshing.current = true
     try {
       const update = await client.request({ op: 'status', id: connectedRoom })
-      if (!closedRooms.current.has(connectedRoom)) {
+      if (isCurrent() && !closedRooms.current.has(connectedRoom)) {
         accept(update)
         setSyncError('')
       }
     } catch (failure) {
-      if (closedRooms.current.has(connectedRoom)) return
+      if (!isCurrent() || closedRooms.current.has(connectedRoom)) return
       if (failure instanceof OnlineError && failure.gone) {
         closedRooms.current.add(connectedRoom)
         remember(null)
+        activeRoom.current = null
         setConnectedRoom(null)
         setRoom(null)
         setRetry(null)
@@ -201,13 +215,13 @@ export default function OnlineMatch({ options, onClose }: { options: MatchDeck[]
       }
       setSyncError(failure instanceof Error ? failure.message : '通信エラーです。')
     } finally {
-      refreshing.current = false
-      if (refreshQueued.current) {
+      if (isOpen()) refreshing.current = false
+      if (isCurrent() && refreshQueued.current) {
         refreshQueued.current = false
         void reload()
       }
     }
-  }, [client, connectedRoom, accept])
+  }, [client, connectedRoom, accept, requests])
   const reconnect = reload
 
   useEffect(() => { setLogOpen(readLogPreference(connectedRoom)) }, [connectedRoom])
@@ -261,6 +275,7 @@ export default function OnlineMatch({ options, onClose }: { options: MatchDeck[]
 
   async function send(payload: RequestPayload, preparation?: RequestPayload, snapshot?: DeckSnapshot) {
     if (!client || writeInFlight.current) return
+    const isCurrent = requests.capture()
     writeInFlight.current = true
     setBusy(true)
     setError('')
@@ -268,20 +283,21 @@ export default function OnlineMatch({ options, onClose }: { options: MatchDeck[]
     try {
       if (preparation) {
         const registered = await client.request(preparation)
+        if (!isCurrent() || closedRooms.current.has(registered.id)) return
         accept(registered)
       }
       const update = await client.request(payload)
-      if ((payload.command as Command | undefined)?.kind === 'lock' && !closedRooms.current.has(update.id)) playEffects(['confirm'])
+      if (!isCurrent() || closedRooms.current.has(update.id)) return
+      if ((payload.command as Command | undefined)?.kind === 'lock') playEffects(['confirm'])
       setRetry(null)
       if ((payload.command as Command | undefined)?.kind === 'leave') {
         closedRooms.current.add(update.id)
         remember(null)
+        activeRoom.current = null
         setConnectedRoom(null)
         setRoom(null)
-        clearInvite()
-        onClose()
+        close()
       } else {
-        if (closedRooms.current.has(update.id)) return
         if (snapshot) {
           const registered = { id: update.id, decks: { [snapshot.type]: snapshot.cards } }
           setRoomDecks(registered)
@@ -289,10 +305,12 @@ export default function OnlineMatch({ options, onClose }: { options: MatchDeck[]
         }
         accept(update)
         remember(update.id)
+        activeRoom.current = update.id
         setConnectedRoom(update.id)
         if (payload.op === 'join') clearInvite()
       }
     } catch (failure) {
+      if (!isCurrent() || (room && activeRoom.current !== room.id)) return
       const issue = failure instanceof OnlineError ? failure : new OnlineError('通信エラーです。', false, true)
       setRetry(issue.retry && payload.op !== 'join' ? [payload, preparation, snapshot] : null)
       setDegraded(issue.retry)
@@ -300,13 +318,16 @@ export default function OnlineMatch({ options, onClose }: { options: MatchDeck[]
       if (issue.gone && room) {
         closedRooms.current.add(room.id)
         remember(null)
+        activeRoom.current = null
         setConnectedRoom(null)
         setRoom(null)
       }
     } finally {
-      setBusy(false)
-      writeInFlight.current = false
-      if (payload.op === 'command') void reload()
+      if (isCurrent()) {
+        setBusy(false)
+        writeInFlight.current = false
+        if (payload.op === 'command') void reload()
+      }
     }
   }
   function prepare() {
@@ -381,11 +402,11 @@ export default function OnlineMatch({ options, onClose }: { options: MatchDeck[]
   const prediction = canSelect ? assassins.find(play => play.id === predictionId) : undefined
   const viewedSide = dialog === 'own' || dialog === 'own-discard' ? room?.side : opponent
   const viewed = viewedSide === undefined ? undefined : game?.players[viewedSide]
-  if (!client) return <Sheet title="オンライン対戦" className="online-sheet" onClose={() => { clearInvite(); onClose() }}><p>現在オンライン対戦を利用できません。NPC対戦は引き続き遊べます。</p></Sheet>
+  if (!client) return <Sheet title="オンライン対戦" className="online-sheet" onClose={close}><p>現在オンライン対戦を利用できません。NPC対戦は引き続き遊べます。</p></Sheet>
 
   return <>
     {!game || !room ? (
-      <Sheet title="オンライン対戦" className="online-sheet" onClose={() => { clearInvite(); onClose() }}>
+      <Sheet title="オンライン対戦" className="online-sheet" onClose={close}>
         {!room && !connectedRoom && <>
           {mode === 'create' ? <>
             <button className="quiet" disabled={busy} onClick={() => { setMode('join'); setRetry(null); setError('') }}>ルームコードを入力</button>
