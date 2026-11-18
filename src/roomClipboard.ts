@@ -1,4 +1,5 @@
 const roomCodePattern = /^[A-HJ-NP-Z2-9]{10}$/
+const invitationBaseUrl = 'https://jinroduel.com/'
 
 export function isRoomCode(value: string) {
   return value.length === 10 && roomCodePattern.test(value)
@@ -6,6 +7,13 @@ export function isRoomCode(value: string) {
 
 export function formatRoomCodeInput(value: string) {
   return value.toUpperCase().replace(/[\s-]/g, '')
+}
+
+export function roomInvitationUrl(code: string) {
+  if (!isRoomCode(code)) return ''
+  const url = new URL(invitationBaseUrl)
+  url.searchParams.set('room', code)
+  return url.href
 }
 
 export async function copyLobbyField(

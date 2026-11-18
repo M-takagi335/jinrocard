@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { playEffects, setMusic } from './audio.ts'
 import { battleTrack } from './soundEvents.ts'
 import { useOnlineDuelSound } from './useOnlineDuelSound.ts'
@@ -16,7 +16,7 @@ import { InvestigationPanel } from './InvestigationPanel.tsx'
 import { cardsForMatch } from './matchDeck.ts'
 import { OnlineError, onlineClient } from './onlineClient.ts'
 import { spyDrawRulesVersion, type Command, type OnlineView } from './onlineProtocol.ts'
-import { copyLobbyField, formatRoomCodeInput, isRoomCode } from './roomClipboard.ts'
+import { copyLobbyField, formatRoomCodeInput, isRoomCode, roomInvitationUrl } from './roomClipboard.ts'
 import { DeckComposition, Sheet } from './Sheet.tsx'
 import { TyrantLimitNotice } from './TyrantLimitNotice.tsx'
 
@@ -62,12 +62,7 @@ function RoomInvitation({ code }: { code: string }) {
   const urlField = useRef<HTMLInputElement>(null)
   const copying = useRef(false)
   const [feedback, setFeedback] = useState<{ success: boolean; text: string }>()
-  const invite = useMemo(() => {
-    if (!isRoomCode(code)) return ''
-    const url = new URL(location.pathname, location.origin)
-    url.searchParams.set('room', code)
-    return url.href
-  }, [code])
+  const invite = roomInvitationUrl(code)
 
   async function copy(kind: 'code' | 'url', field: HTMLInputElement | null) {
     if (!field || copying.current) return

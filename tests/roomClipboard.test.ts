@@ -1,16 +1,24 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { copyLobbyField, formatRoomCodeInput, isRoomCode } from '../src/roomClipboard.ts'
+import { copyLobbyField, formatRoomCodeInput, isRoomCode, roomInvitationUrl } from '../src/roomClipboard.ts'
 
 const code = 'ABCD234567'
 const second = 'EFGH987654'
-const url = 'https://jinrocard.vercel.app/?room=' + code
+const url = 'https://jinroduel.com/?room=' + code
+
+test('new room links use the official root URL and retain the exact room parameter', () => {
+  assert.equal(roomInvitationUrl(code), url)
+  assert.equal(roomInvitationUrl(second), 'https://jinroduel.com/?room=' + second)
+  for (const invalid of ['', code + '&other=1', code + '\n']) {
+    assert.equal(roomInvitationUrl(invalid), '')
+  }
+})
 
 test('lobby copies the exact current code or URL using its own field', async () => {
   const writes: string[] = []
   const clipboard = { async writeText(value: string) { writes.push(value) } }
   const fallback = () => assert.fail('Clipboard API succeeded')
-  assert.equal(await copyLobbyField('url', url, clipboard, fallback), true)
+  assert.equal(await copyLobbyField('url', roomInvitationUrl(code), clipboard, fallback), true)
   assert.equal(await copyLobbyField('code', code, clipboard, fallback), true)
   assert.equal(await copyLobbyField('code', second, clipboard, fallback), true)
   assert.deepEqual(writes, [url, code, second])
