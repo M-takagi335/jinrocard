@@ -1,7 +1,7 @@
 import { ROLES, card, type Role } from './cards.ts'
 import type { NpcView, Play } from './duel.ts'
 
-export const NPC_DIFFICULTIES = { standard: '標準', strong: '強い', strongest: '最強' } as const
+export const NPC_DIFFICULTIES = { easy: 'やさしい', standard: '標準', strong: '強い', strongest: '最強' } as const
 export type NpcDifficulty = keyof typeof NPC_DIFFICULTIES
 
 export type StrongNpcView = NpcView & {

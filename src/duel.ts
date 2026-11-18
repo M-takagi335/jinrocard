@@ -55,6 +55,21 @@ function value(role:Role, hp:number, noHeal=false, discardCount=1) {
   }
 }
 export function chooseNpc(view:NpcView, rng:()=>number): Play[] {
+  return chooseBasicNpc(view, rng, false, .74)
+}
+
+export function chooseEasyNpc(view:NpcView, rng:()=>number): Play[] {
+  return chooseBasicNpc(view, rng, true, .46)
+}
+
+// D from the easy-NPC study. Healing and self-damage retain their standard scores.
+function easyPenalty(role:Role) {
+  if (role === 'hunter' || role === 'trap') return 1.55
+  if (role === 'knight') return .65
+  return card(role).category === 'attack' ? 1.35 : 0
+}
+
+function chooseBasicNpc(view:NpcView, rng:()=>number, easy:boolean, pairRate:number): Play[] {
   const remaining = view.enemyRemaining.reduce((total, entry) => total + entry.count, 0)
   const attacks = view.enemyRemaining.reduce((total, entry) => total + (card(entry.role).category === 'attack' ? entry.count : 0), 0)
   // Estimate the benefit after a likely two-card play from publicly remaining roles.
@@ -64,9 +79,9 @@ export function chooseNpc(view:NpcView, rng:()=>number): Play[] {
     - Math.max(RULES.handRefill, left)
   const spyBonus = attackChance * extra * .25
   const ranked = view.hand.map(c => ({c, score:value(c.role,view.hp,view.noHeal,view.discard.length)
-    + (c.role === 'spy' ? spyBonus : 0) + rng()*3}))
+    + (c.role === 'spy' ? spyBonus : 0) + rng()*3 - (easy ? easyPenalty(c.role) : 0)}))
     .sort((a,b)=>b.score-a.score)
-  const amount = Math.min(view.max, ranked.length, ranked[1]?.score >= 3 && rng() < .74 ? 2 : 1)
+  const amount = Math.min(view.max, ranked.length, ranked[1]?.score >= 3 && rng() < pairRate ? 2 : 1)
   const move = ranked.slice(0,amount)
   if (move.length === 2 && move.every(({ c }) => c.role === 'merchant') && view.hp <= 2 * card('merchant').recoil!) move.pop()
   const guesses = view.enemyRemaining.flatMap(({ role, count }) => Array<Role>(count).fill(role))
@@ -113,9 +128,10 @@ export class Duel {
     this.legacyCurse = options.legacyCurse ?? false
     this.merchantCost = options.legacyMerchant ? 2 : card('merchant').recoil!
     this.spyDraw = options.legacySpy ? 1 : card('spy').power!
+    const basic = this.npcDifficulty === 'easy' ? chooseEasyNpc : chooseNpc
     this.npc = options.npc ?? (this.npcDifficulty === 'strong'
       ? view => chooseStrongNpc(this.withPublicContext(1, view), this.rng)
-      : view => chooseNpc(view, this.rng))
+      : view => basic(view, this.rng))
     let id=0
     const prepare=(roles:Role[]):Player=>({
       hp:this.rules.hp, hand:[], deck:shuffle(roles.map(role=>({id:++id,role})),this.rng),

@@ -7,6 +7,7 @@ import { generatedMatchHint, generatedMatchType } from './matchDeck.ts'
 import { Sheet } from './Sheet.tsx'
 import { NPC_DIFFICULTIES, type NpcDifficulty } from './strongNpc.ts'
 const difficultyDescription: Record<NpcDifficulty, string> = {
+  easy: '初めての方や、気軽に遊びたい方向け',
   standard: '基本的な判断で戦う',
   strong: '公開情報を参考に戦う',
   strongest: '公開情報と調査結果で翌夜まで先読み',
