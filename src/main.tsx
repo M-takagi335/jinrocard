@@ -347,7 +347,7 @@ function App() {
               <div className="eyebrow">✦　月夜の決闘</div>
               <h1>人狼デュエル</h1>
               <p className="hero-credit" lang="en">{creatorCredit}</p>
-              <p>役職を選び、相手の手を読む。<br/>十五夜のうちに、決着をつけろ。</p>
+              <p><strong>相手のHPを0にすれば勝利。</strong><br/>役職を選び、相手の手を読む。<br/>十五夜のうちに、決着をつけろ。</p>
               <div className="home-actions">
                 <button className="primary" onClick={openMatchSetup}>NPCと対戦</button>
                 <button className="quiet" onClick={() => { setOnline(true); window.scrollTo(0, 0) }}>オンライン対戦</button>
