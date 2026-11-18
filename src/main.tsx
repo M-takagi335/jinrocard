@@ -47,6 +47,8 @@ function readLibrary(): { decks: SavedDeck[]; issues: string[] } {
 
 type Overlay = { type: 'start' | 'generate' | 'investigations' | 'library' | 'other' | 'save' } | { type: 'deck' | 'discard'; side: Side } | { type: 'guess'; id: number } | { type: 'delete'; deck: SavedDeck }
 
+const creatorName = 'TAKENOKO'
+const creatorCredit = 'Created by ' + creatorName
 const rolesByName = new Map(ROLES.map(role => [card(role).name, role]))
 const roleMention = new RegExp('(' + [...rolesByName.keys()].sort((a, b) => b.length - a.length).join('|') + ')', 'g')
 
@@ -344,6 +346,7 @@ function App() {
             <div className="hero-copy">
               <div className="eyebrow">✦　月夜の決闘</div>
               <h1>人狼デュエル</h1>
+              <p className="hero-credit" lang="en">{creatorCredit}</p>
               <p>役職を選び、相手の手を読む。<br/>十五夜のうちに、決着をつけろ。</p>
               <div className="home-actions">
                 <button className="primary" onClick={openMatchSetup}>NPCと対戦</button>
@@ -384,6 +387,8 @@ function App() {
                 <div><CardTile role="hunter" onInspect={() => inspect('hunter')} /><p>相手の襲撃を防ぐ。</p></div>
                 <div><CardTile role="seer" onInspect={() => inspect('seer')} /><p>相手の手札を調べる。</p></div>
               </div>
+              <h3>ゲーム情報</h3>
+              <p>ゲーム名：人狼デュエル<br />制作者：{creatorName}<br /><span lang="en">{creatorCredit}</span></p>
             </section>
           )}
           <section className="home-catalog" aria-labelledby="home-catalog-title">
