@@ -351,6 +351,7 @@ function App() {
             <div className="hero-copy">
               <div className="eyebrow">✦　月夜の決闘</div>
               <h1>人狼デュエル</h1>
+              <p className="hero-subtitle">― 十五夜の心理戦 ―</p>
               <p className="hero-credit" lang="en">{creatorCredit}</p>
               <p><strong>相手のHPを0にすれば勝利。</strong><br/>役職を選び、相手の手を読む。<br/>十五夜のうちに、決着をつけろ。</p>
               <div className="home-actions">
@@ -393,7 +394,7 @@ function App() {
                 <div><CardTile role="seer" onInspect={() => inspect('seer')} /><p>相手の手札を調べる。</p></div>
               </div>
               <h3>ゲーム情報</h3>
-              <p>ゲーム名：人狼デュエル<br />制作者：{creatorName}<br /><span lang="en">{creatorCredit}</span></p>
+              <p>ゲーム名：人狼デュエル ― 十五夜の心理戦 ―<br />制作者：{creatorName}<br /><span lang="en">{creatorCredit}</span></p>
             </section>
           )}
           <section className="home-catalog" aria-labelledby="home-catalog-title">
