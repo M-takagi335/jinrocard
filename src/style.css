@@ -110,6 +110,21 @@
 .top-inner {
   gap: 8px;
 }
+.top .brand {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 10px;
+  min-width: 0;
+  padding-block: 6px;
+  line-height: 1.35;
+  white-space: normal;
+}
+.brand-main { white-space: nowrap; }
+.brand-subtitle {
+  color: var(--gold);
+  font-size: .75em;
+}
 .top-actions, .sheet-header-actions {
   display: flex;
   align-items: center;

@@ -333,7 +333,7 @@ function App() {
   const missing = RULES.deckSize - deck.length
   const libraryPreview = saved.find(entry => entry.id === libraryId)
   return <OpenSoundSettings.Provider value={() => setSoundSettings(true)}>
-    <header className="top"><div className="wrap top-inner"><span className="brand"><span className="sigil">◈</span> 人狼デュエル</span>
+    <header className="top"><div className="wrap top-inner"><span className="brand"><span className="brand-main"><span className="sigil">◈</span> 人狼デュエル</span>{' '}<span className="brand-subtitle">― 十五夜の心理戦 ―</span></span>
       <div className="top-actions">
         {page === 'builder' && <button className="quiet" onClick={home}>ホームへ戻る</button>}
         <SoundSettingsButton />
