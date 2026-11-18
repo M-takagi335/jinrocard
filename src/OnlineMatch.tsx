@@ -95,7 +95,7 @@ function RoomInvitation({ code }: { code: string }) {
       <button className="quiet" disabled={!isRoomCode(code)} onClick={() => void copy('code', codeField.current)}>コードをコピー</button>
       <button className="quiet" disabled={!invite} onClick={() => void copy('url', urlField.current)}>招待URLをコピー</button>
       {navigator.share && <button className="quiet" disabled={!invite}
-        onClick={() => void navigator.share({ title: '人狼デュエル', url: invite }).catch(() => {})}>共有</button>}
+        onClick={() => void navigator.share({ title: '人狼十五夜', url: invite }).catch(() => {})}>共有</button>}
     </div>
     {feedback && <p className="notice" role={feedback.success ? 'status' : 'alert'}>{feedback.text}</p>}
   </div>

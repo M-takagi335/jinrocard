@@ -121,10 +121,6 @@
   white-space: normal;
 }
 .brand-main { white-space: nowrap; }
-.brand-subtitle {
-  color: var(--gold);
-  font-size: .75em;
-}
 .top-actions, .sheet-header-actions {
   display: flex;
   align-items: center;
@@ -859,15 +855,6 @@ html:has(.match-contents[open]) {
 }
 :where([role="tabpanel"], .sheet-body):focus-visible {
   outline-offset: -2px;
-}
-
-.hero .hero-subtitle {
-  margin: -5px 0 10px;
-  color: var(--gold);
-  font-family: "Yu Mincho", "Hiragino Mincho ProN", serif;
-  font-size: clamp(16px, 2vw, 22px);
-  line-height: 1.5;
-  letter-spacing: .12em;
 }
 
 .online-actions {

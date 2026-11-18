@@ -333,7 +333,7 @@ function App() {
   const missing = RULES.deckSize - deck.length
   const libraryPreview = saved.find(entry => entry.id === libraryId)
   return <OpenSoundSettings.Provider value={() => setSoundSettings(true)}>
-    <header className="top"><div className="wrap top-inner"><span className="brand"><span className="brand-main"><span className="sigil">◈</span> 人狼デュエル</span>{' '}<span className="brand-subtitle">― 十五夜の心理戦 ―</span></span>
+    <header className="top"><div className="wrap top-inner"><span className="brand"><span className="brand-main"><span className="sigil">◈</span> 人狼十五夜</span></span>
       <div className="top-actions">
         {page === 'builder' && <button className="quiet" onClick={home}>ホームへ戻る</button>}
         <SoundSettingsButton />
@@ -350,8 +350,7 @@ function App() {
             <div className="moon" aria-hidden="true"/>
             <div className="hero-copy">
               <div className="eyebrow">✦　月夜の決闘</div>
-              <h1>人狼デュエル</h1>
-              <p className="hero-subtitle">― 十五夜の心理戦 ―</p>
+              <h1>人狼十五夜</h1>
               <p className="hero-credit" lang="en">{creatorCredit}</p>
               <p><strong>相手のHPを0にすれば勝利。</strong><br/>役職を選び、相手の手を読む。<br/>十五夜のうちに、決着をつけろ。</p>
               <div className="home-actions">
@@ -394,7 +393,7 @@ function App() {
                 <div><CardTile role="seer" onInspect={() => inspect('seer')} /><p>相手の手札を調べる。</p></div>
               </div>
               <h3>ゲーム情報</h3>
-              <p>ゲーム名：人狼デュエル ― 十五夜の心理戦 ―<br />制作者：{creatorName}<br /><span lang="en">{creatorCredit}</span></p>
+              <p>ゲーム名：人狼十五夜<br />制作者：{creatorName}<br /><span lang="en">{creatorCredit}</span></p>
             </section>
           )}
           <section className="home-catalog" aria-labelledby="home-catalog-title">
@@ -657,7 +656,7 @@ function App() {
       {preview && <CardDetail {...preview} onClose={() => setPreview(null)} />}
       {soundSettings && <SoundSettings onClose={() => setSoundSettings(false)}
         showStatistics={statisticsEnabled && page === 'home' && !duel && !online} />}
-    </main><footer className="wrap footer">◈　人狼デュエル <span>WEREWOLF DUEL</span></footer>
+    </main><footer className="wrap footer">◈　人狼十五夜 <span>JINRO JUGOYA</span></footer>
   </OpenSoundSettings.Provider>
 }
 initAudio()
