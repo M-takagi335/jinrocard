@@ -102,8 +102,8 @@ test('online replay preserves the Merchant cost of each started rules version', 
   applyCommand(room,1,{kind:'deck',cards:guest},true,word)
   applyCommand(room,0,{kind:'ready'},true,word)
   applyCommand(room,1,{kind:'ready'},true,word)
-  assert.equal(room.version,3)
-  for (const version of [1,2,3] as const) {
+  assert.equal(room.version,4)
+  for (const version of [1,2,3,4] as const) {
     const live = { ...structuredClone(room), version }
     const ours = gameView(live,0)!
     const theirs = gameView(live,1)!
@@ -116,7 +116,7 @@ test('online replay preserves the Merchant cost of each started rules version', 
       applyCommand(live,0,{kind:'answer',night:1,step:current.prompt.step,id:current.prompt.options[0].id},true,word)
       current = gameView(live,0)!
     }
-    const lost = version === 3 ? 2 : 4
+    const lost = version >= 3 ? 2 : 4
     assert.deepEqual(current.players[0].hpChange,{lost,gained:0})
     assert.equal(current.players[0].hp,20-lost)
     assert.equal(current.log.filter(e=>e.text==='プレイヤーAは3枚引いた。').length,2)

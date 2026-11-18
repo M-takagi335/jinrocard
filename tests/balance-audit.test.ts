@@ -84,7 +84,7 @@ test('audit: spy and jester look at revealed attack classification, even if disa
     const spy = fixture(['spy','mad'], ['hunter', attack])
     spy.play()
     assert.equal(spy.duel.revealed[1][1].disabled, true)
-    assert.equal(spy.duel.players[0].hand.length, 5)
+    assert.equal(spy.duel.players[0].hand.length, 6)
     assert.deepEqual(spy.hp(), [20,20])
     const jester = fixture(['jester','mad'], ['hunter', attack])
     jester.play()
@@ -94,7 +94,7 @@ test('audit: spy and jester look at revealed attack classification, even if disa
   }
   const idleCat = fixture(['spy'], ['cat'])
   idleCat.play()
-  assert.equal(idleCat.duel.players[0].hand.length, 6)
+  assert.equal(idleCat.duel.players[0].hand.length, 7)
   assert.deepEqual(idleCat.hp(), [20,20])
 })
 

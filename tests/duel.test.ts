@@ -259,7 +259,7 @@ test('fox checks HP at attack start and an incorrect assassin guess does no dama
 test('conditional draws use the revealed attack category',()=>{
   const A=rig(['spy','jester'],['cat'])
   A.play()
-  assert.equal(A.game.players[0].hand.length,5)
+  assert.equal(A.game.players[0].hand.length,6)
   const B=rig(['spy','jester'],['witch'])
   B.play()
   assert.equal(B.game.players[0].hand.length,6)

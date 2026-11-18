@@ -2,8 +2,9 @@ import { Art } from './CardTile.tsx'
 import { card, CATEGORY, type Role } from './cards.ts'
 import { Sheet } from './Sheet.tsx'
 
-export function CardDetail({ role, action, onClose }: {
+export function CardDetail({ role, effect, action, onClose }: {
   role: Role
+  effect?: string
   action?: { label: string; run: () => void }
   onClose: () => void
 }) {
@@ -15,7 +16,7 @@ export function CardDetail({ role, action, onClose }: {
         <Art role={role} eager />
         <div>
           <span className="card-inspection-category">{CATEGORY[spec.category]}</span>
-          <p>{spec.text}</p>
+          <p>{effect ?? spec.text}</p>
         </div>
       </div>
     </Sheet>

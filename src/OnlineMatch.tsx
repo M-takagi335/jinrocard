@@ -15,7 +15,7 @@ import { DECK_TYPES, PROFILES, generateDeck, type DeckType } from './generateDec
 import { InvestigationPanel } from './InvestigationPanel.tsx'
 import { cardsForMatch } from './matchDeck.ts'
 import { OnlineError, onlineClient } from './onlineClient.ts'
-import type { Command, OnlineView } from './onlineProtocol.ts'
+import { spyDrawRulesVersion, type Command, type OnlineView } from './onlineProtocol.ts'
 import { copyLobbyField, formatRoomCodeInput, isRoomCode } from './roomClipboard.ts'
 import { DeckComposition, Sheet } from './Sheet.tsx'
 import { TyrantLimitNotice } from './TyrantLimitNotice.tsx'
@@ -163,6 +163,7 @@ export default function OnlineMatch({ options, onClose }: { options: MatchDeck[]
   const closedRooms = useRef(new Set<string>())
   const playArea = useRef<HTMLElement>(null)
   const game = room?.game
+  const legacySpy = !!game && room?.rulesVersion !== undefined && room.rulesVersion < spyDrawRulesVersion
   useEffect(() => { setMusic(game ? battleTrack(game.night, game.phase === 'finished') : 1) }, [game?.night, game?.phase])
   useOnlineDuelSound(room?.id, game && room ? {
     night: game.night,
@@ -443,8 +444,9 @@ export default function OnlineMatch({ options, onClose }: { options: MatchDeck[]
       <p role="status">{degraded ? '再接続中…' : !room.connected[opponent] && !room.left[opponent] ? '相手は切断中です。再接続をお待ちください。' : ''}</p>
       {(error || syncError) && <p className="notice" role="alert">{error || syncError}</p>}
       {(retry || degraded) && <button className="quiet" disabled={busy} onClick={() => retry ? void send(...retry) : reconnect()}>再試行</button>}
-      {room.rulesVersion && room.rulesVersion < 3 && <p className="hint">
-        この対戦は開始時のルールを使用します。商人の消費は2HPです。
+      {legacySpy && <p className="hint">
+        この対戦は開始時のルールを使用します。密偵は条件成立時に1枚引きます。
+        {room.rulesVersion && room.rulesVersion < 3 && '商人の消費は2HPです。'}
         {room.rulesVersion === 1 && '呪術師は相手の次の夜のHP回復を無効化します。'}
       </p>}
       <div className="fighters">
@@ -523,6 +525,8 @@ export default function OnlineMatch({ options, onClose }: { options: MatchDeck[]
         setPredictionId(undefined)
       }}
       onClose={() => setPredictionId(undefined)} />}
-    {peek && <CardDetail role={peek} onClose={() => setPeek(undefined)} />}
+    {peek && <CardDetail role={peek}
+      effect={legacySpy && peek === 'spy' ? '相手が攻撃カードを出していれば、カードを1枚引く。' : undefined}
+      onClose={() => setPeek(undefined)} />}
   </>
 }

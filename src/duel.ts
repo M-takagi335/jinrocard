@@ -36,7 +36,7 @@ function composition(roles: readonly Role[]): readonly DeckEntry[] {
 export type NpcView = { hand: readonly Instance[]; hp:number; enemyHp:number; max:number; noHeal:boolean; discard:readonly Instance[]; enemyDiscard:readonly Instance[]; enemyDeck:readonly DeckEntry[]; enemyRemaining:readonly DeckEntry[] }
 type Config = { hp:number; deckSize:number; opening:number; nightlyDraw:number; handRefill:number; handLimit:number; maxPlays:number; finalNight:number; finalTieBreak:'hp'|'draw' }
 type IntelDraw = Readonly<Partial<Record<'seer' | 'prophet', number>>>
-type Options = { rng?:()=>number; rules?:Partial<Config>; npc?: (view:NpcView)=>Play[]; intelDraw?: IntelDraw; npcDifficulty?: NpcDifficulty; twoHumans?: boolean; legacyCurse?: boolean; legacyMerchant?: boolean }
+type Options = { rng?:()=>number; rules?:Partial<Config>; npc?: (view:NpcView)=>Play[]; intelDraw?: IntelDraw; npcDifficulty?: NpcDifficulty; twoHumans?: boolean; legacyCurse?: boolean; legacyMerchant?: boolean; legacySpy?: boolean }
 export function shuffle<T>(input:readonly T[], rng:()=>number): T[] {
   const a = [...input]
   for(let i=a.length-1;i>0;i--) { const j=Math.floor(rng()*(i+1)); [a[i],a[j]]=[a[j],a[i]] }
@@ -55,7 +55,16 @@ function value(role:Role, hp:number, noHeal=false, discardCount=1) {
   }
 }
 export function chooseNpc(view:NpcView, rng:()=>number): Play[] {
-  const ranked = view.hand.map(c => ({c, score:value(c.role,view.hp,view.noHeal,view.discard.length)+rng()*3}))
+  const remaining = view.enemyRemaining.reduce((total, entry) => total + entry.count, 0)
+  const attacks = view.enemyRemaining.reduce((total, entry) => total + (card(entry.role).category === 'attack' ? entry.count : 0), 0)
+  // Estimate the benefit after a likely two-card play from publicly remaining roles.
+  const attackChance = remaining ? 1 - (1 - attacks / remaining) ** 2 : 0
+  const left = Math.max(0, view.hand.length - Math.min(2, view.max))
+  const extra = Math.min(RULES.handLimit, Math.max(RULES.handRefill, left + card('spy').power!))
+    - Math.max(RULES.handRefill, left)
+  const spyBonus = attackChance * extra * .25
+  const ranked = view.hand.map(c => ({c, score:value(c.role,view.hp,view.noHeal,view.discard.length)
+    + (c.role === 'spy' ? spyBonus : 0) + rng()*3}))
     .sort((a,b)=>b.score-a.score)
   const amount = Math.min(view.max, ranked.length, ranked[1]?.score >= 3 && rng() < .74 ? 2 : 1)
   const move = ranked.slice(0,amount)
@@ -71,6 +80,7 @@ export class Duel {
   private readonly twoHumans: boolean
   private readonly legacyCurse: boolean
   private readonly merchantCost: number
+  private readonly spyDraw: number
   private readonly investigations: [InvestigationSnapshot[], InvestigationSnapshot[]] = [[], []]
   private readonly revisions = [0, 0]
   private hpChanges: [HpChange, HpChange] = [{ lost: 0, gained: 0 }, { lost: 0, gained: 0 }]
@@ -102,6 +112,7 @@ export class Duel {
     this.twoHumans = options.twoHumans ?? false
     this.legacyCurse = options.legacyCurse ?? false
     this.merchantCost = options.legacyMerchant ? 2 : card('merchant').recoil!
+    this.spyDraw = options.legacySpy ? 1 : card('spy').power!
     this.npc = options.npc ?? (this.npcDifficulty === 'strong'
       ? view => chooseStrongNpc(this.withPublicContext(1, view), this.rng)
       : view => chooseNpc(view, this.rng))
@@ -421,7 +432,7 @@ export class Duel {
           break
         }
         case 'spy': case 'jester':
-          if(attacks===(c.role==='spy')) this.draw(i,spec.power!)
+          if(attacks===(c.role==='spy')) this.draw(i,c.role==='spy' ? this.spyDraw : spec.power!)
           else this.write(who[i]+'の'+spec.name+'は条件を満たさなかった。')
           break
         case 'merchant': this.draw(i,spec.power!); break
