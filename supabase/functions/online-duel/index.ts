@@ -19,6 +19,7 @@ const secret = Deno.env.get('JINRO_SERVER_KEY') ?? JSON.parse(Deno.env.get('SUPA
 const options = { auth: { autoRefreshToken: false, persistSession: false } }
 const auth = createClient(project, publishable, options)
 const db = createClient(project, secret, options)
+const statisticsEnabled = Deno.env.get('JINRO_ONLINE_STATS_ENABLED') === 'true'
 const member = (row: Row, id: string): Side | null => row.host_id === id ? 0 : row.guest_id === id ? 1 : null
 function view(row: Row, side: Side): OnlineView {
   const { state } = row
@@ -110,13 +111,15 @@ Deno.serve(async req => {
         return data?.[0] ? json(view(data[0], side!)) : unavailable()
       }
       const actor = joining ? 1 : side!
+      let state: Row['state'] & { _statsDraw?: boolean } = row.state
       if (command) {
         if (row.state.receipts[actor].includes(request as string)) return json(view(row, actor))
-        applyCommand(row.state, actor, command, row.guest_id !== null)
+        const winner = applyCommand(row.state, actor, command, row.guest_id !== null)
         row.state.receipts[actor].push(request as string)
+        if (statisticsEnabled && winner != null) state = { ...row.state, _statsDraw: winner === 'draw' }
       }
       const { data, error } = await db.rpc('online_commit', {
-        p_id: row.id, p_revision: row.revision, p_uid: uid, p_join: joining, p_state: row.state,
+        p_id: row.id, p_revision: row.revision, p_uid: uid, p_join: joining, p_state: state,
       })
       if (error) throw error
       if (data?.[0]) return json(view(data[0], actor))

@@ -645,6 +645,28 @@ html:has(.builder-sheet[open]) {
   width: 100%;
   min-height: 44px;
 }
+.match-statistics h3 {
+  margin-block: 12px 6px;
+  color: var(--gold);
+}
+.statistics-difficulty {
+  margin-block: 8px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+}
+.statistics-difficulty h4 {
+  margin: 0 0 4px;
+}
+.statistics-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(95px, 1fr));
+  gap: 6px 10px;
+  margin: 7px 0;
+}
+.statistics-metrics dt { font-size: .78rem; }
+.statistics-metrics dd { margin: 0; font-weight: 700; overflow-wrap: anywhere; }
+.match-statistics .quiet { min-height: 44px; }
 .hero .hero-credit {
   color: var(--gold);
   font-size: .75rem;

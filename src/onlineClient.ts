@@ -1,7 +1,8 @@
-import { createClient } from '@supabase/supabase-js'
+import { createClient, type Session } from '@supabase/supabase-js'
 import type { OnlineView } from './onlineProtocol.ts'
 
 const unavailable = '現在オンライン対戦を利用できません。NPC対戦は引き続き遊べます。'
+let guestSession: Promise<Session> | undefined
 export class OnlineError extends Error {
   constructor(message: string, readonly gone = false, readonly retry = false) { super(message) }
 }
@@ -14,7 +15,7 @@ export function onlineClient() {
     global: { fetch: (input, init) => fetch(input, { ...init, signal: init?.signal
       ? AbortSignal.any([init.signal, AbortSignal.timeout(12000)]) : AbortSignal.timeout(12000) }) },
   })
-  async function session(allowGuest: boolean) {
+  async function findSession(allowGuest: boolean) {
     const current = await client.auth.getSession()
     if (current.data.session) return current.data.session
     if (!allowGuest) throw new OnlineError('このブラウザで元のゲスト認証を確認できません。', true)
@@ -22,8 +23,23 @@ export function onlineClient() {
     if (error || !data.session) throw new OnlineError('ゲスト認証に失敗しました。時間をおいて再試行してください。', false, true)
     return data.session
   }
+  async function session(allowGuest: boolean) {
+    if (!allowGuest) return findSession(false)
+    const pending = guestSession ??= findSession(true)
+    try { return await pending }
+    finally { if (guestSession === pending) guestSession = undefined }
+  }
   return {
     dispose() { void client.auth.dispose() },
+    async reportNpcMatch(payload: { id: string; category: string; result: string }) {
+      const credentials = await session(true)
+      const response = await fetch(url.replace(/\/$/, '') + '/functions/v1/match-statistics', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', apikey: key,
+          Authorization: 'Bearer ' + credentials.access_token },
+        body: JSON.stringify(payload), signal: AbortSignal.timeout(8000),
+      })
+      return response.ok || (response.status >= 400 && response.status < 500 && response.status !== 429)
+    },
     async request(payload: Record<string, unknown>): Promise<OnlineView> {
       try {
         const credentials = await session(payload.op === 'create' || payload.op === 'join')

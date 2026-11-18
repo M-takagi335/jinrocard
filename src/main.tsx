@@ -23,6 +23,7 @@ import { HpChanges } from './HpChanges.tsx'
 import { initAudio, playEffects, setMusic } from './audio.ts'
 import { battleTrack } from './soundEvents.ts'
 import { SoundSettings } from './SoundSettings.tsx'
+import { queueNpcStatistics, startMatchStatistics, statisticsEnabled } from './matchStatistics.ts'
 import { OpenSoundSettings, SoundSettingsButton } from './SoundSettingsButton.tsx'
 import { localSoundFrame, useDuelSound } from './useDuelSound.ts'
 import './style.css'
@@ -118,6 +119,10 @@ function App() {
   const [,refresh]=useReducer((n:number)=>n+1,0)
   useEffect(()=>{try{localStorage.setItem('jinro-deck',JSON.stringify(deck))}catch{/* unavailable */}},[deck])
   const phase=duel?.phase, night=duel?.night
+  useEffect(startMatchStatistics, [])
+  useEffect(() => {
+    if (duel && phase === 'finished') queueNpcStatistics(duel)
+  }, [duel, phase])
   useEffect(() => {
     if (!duel || phase !== 'select') return
     const view = duel.strongestNpcView()
@@ -649,7 +654,8 @@ function App() {
         </Sheet>
       )}
       {preview && <CardDetail {...preview} onClose={() => setPreview(null)} />}
-      {soundSettings && <SoundSettings onClose={() => setSoundSettings(false)} />}
+      {soundSettings && <SoundSettings onClose={() => setSoundSettings(false)}
+        showStatistics={statisticsEnabled && page === 'home' && !duel && !online} />}
     </main><footer className="wrap footer">◈　人狼デュエル <span>WEREWOLF DUEL</span></footer>
   </OpenSoundSettings.Provider>
 }

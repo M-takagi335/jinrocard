@@ -108,7 +108,11 @@ export function applyCommand(room: RoomState, side: Side, command: Command, join
       room.next = [false, false]
     }
   } else throw new RoomError('対戦開始後にデッキは変更できません。')
-  if (replay(room, true, word).phase === 'finished') room.phase = 'finished'
+  const resolved = replay(room, true, word)
+  if (resolved.phase === 'finished') {
+    room.phase = 'finished'
+    return resolved.winner
+  }
 }
 
 export function gameView(room: RoomState, side: Side) {

@@ -234,6 +234,11 @@ test('Medium and Keeper select a discarded instance and move it to the correct z
 
 test('both human seats can resolve private prompts, finish night 15 and draw', () => {
   const { room, word } = started(passive, passive)
+  const reported: NonNullable<ReturnType<typeof applyCommand>>[] = []
+  const apply = (...args: Parameters<typeof applyCommand>) => {
+    const winner = applyCommand(...args)
+    if (winner != null) reported.push(winner)
+  }
   let steps = 0
   let promptedSecond = false
   while (room.phase === 'playing') {
@@ -245,22 +250,23 @@ test('both human seats can resolve private prompts, finish night 15 and draw', (
       promptedSecond ||= side === 1
       assert.equal(gameView(room, (1 - side) as 0 | 1)!.prompt, null)
       assert.throws(() => applyCommand(room, side, { kind: 'answer', night: game.night, step: step - 1, id: options[0].id }, true, word))
-      applyCommand(room, side, { kind: 'answer', night: game.night, step, id: options[0].id }, true, word)
+      apply(room, side, { kind: 'answer', night: game.night, step, id: options[0].id }, true, word)
     } else if (game.phase === 'select') {
       for (const side of [0, 1] as const) {
         const hand = game.players[side].hand
         const choice = hand.find(card => card.role === 'mason') ?? hand[0]
-        applyCommand(room, side, { kind: 'lock', night: game.night, plays: choice ? [{ id: choice.id }] : [] }, true, word)
+        apply(room, side, { kind: 'lock', night: game.night, plays: choice ? [{ id: choice.id }] : [] }, true, word)
       }
     } else {
-      applyCommand(room, 0, { kind: 'next', night: game.night }, true, word)
+      apply(room, 0, { kind: 'next', night: game.night }, true, word)
       assert.equal(gameView(room, 1)!.night, game.night)
-      applyCommand(room, 1, { kind: 'next', night: game.night }, true, word)
+      apply(room, 1, { kind: 'next', night: game.night }, true, word)
     }
   }
   assert.equal(promptedSecond, true)
   assert.equal(gameView(room, 0)!.night, 15)
   assert.equal(gameView(room, 1)!.winner, 'draw')
+  assert.deepEqual(reported, ['draw'])
 })
 
 test('online stops at HP zero and explicit departure ends a different match', () => {
@@ -287,7 +293,7 @@ test('online stops at HP zero and explicit departure ends a different match', ()
   }
   assert.equal(gameView(room, 0)!.reason, 'HPが0になった')
   const other = started()
-  applyCommand(other.room, 1, { kind: 'leave' }, true)
+  assert.equal(applyCommand(other.room, 1, { kind: 'leave' }, true), undefined)
   assert.equal(gameView(other.room, 0)!.winner, 0)
   assert.equal(gameView(other.room, 0)!.phase, 'finished')
 })
