@@ -685,16 +685,24 @@ html:has(.builder-sheet[open]) {
   letter-spacing: .07em;
   margin-bottom: 8px;
 }
-.creator-socials {
+.footer:has(.footer-socials) {
+  align-items: center;
+  padding-block: 7px;
+}
+.footer-identity {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 16px;
+  row-gap: 2px;
+}
+.footer-socials {
   display: flex;
   align-items: center;
-  gap: 2px;
-  width: fit-content;
-  margin: -8px 0 8px -8px;
-  color: var(--muted);
+  flex-shrink: 0;
   font-size: 12px;
 }
-.creator-socials a {
+.footer-socials a {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -705,7 +713,8 @@ html:has(.builder-sheet[open]) {
   text-decoration: underline;
   text-underline-offset: 3px;
 }
-.creator-socials a:hover { color: var(--gold); }
+.footer-socials a:hover { color: var(--gold); }
+.footer-socials > span { font-size: 12px; letter-spacing: 0; font-weight: normal; }
 .home-catalog {
   margin-top: 34px;
 }
