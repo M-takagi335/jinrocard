@@ -685,6 +685,27 @@ html:has(.builder-sheet[open]) {
   letter-spacing: .07em;
   margin-bottom: 8px;
 }
+.creator-socials {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  width: fit-content;
+  margin: -8px 0 8px -8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.creator-socials a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 8px;
+  color: var(--muted);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.creator-socials a:hover { color: var(--gold); }
 .home-catalog {
   margin-top: 34px;
 }

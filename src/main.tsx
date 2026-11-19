@@ -352,6 +352,11 @@ function App() {
               <div className="eyebrow">✦　月夜の決闘</div>
               <h1>人狼十五夜</h1>
               <p className="hero-credit" lang="en">{creatorCredit}</p>
+              <nav className="creator-socials" aria-label="TAKENOKOのSNS・制作記録">
+                <a href="https://x.com/ai_app_diary" target="_blank" rel="noopener noreferrer" aria-label="TAKENOKOのX（新しいタブで開く）">X</a>
+                <span aria-hidden="true">｜</span>
+                <a href="https://note.com/ai_app_diary" target="_blank" rel="noopener noreferrer" aria-label="TAKENOKOのnote（新しいタブで開く）">note</a>
+              </nav>
               <p><strong>相手のHPを0にすれば勝利。</strong><br/>役職を選び、相手の手を読む。<br/>十五夜のうちに、決着をつけろ。</p>
               <div className="home-actions">
                 <button className="primary" onClick={openMatchSetup}>NPCと対戦</button>
