@@ -1,7 +1,9 @@
+import { useRuleCards } from './CardRules.tsx'
 import { Art, CardCategory } from './CardTile.tsx'
-import { card, ROLES, type Role } from './cards.ts'
+import { ROLES, type Role } from './cards.ts'
 
 export function DeckCardList({ cards, onInspect }: { cards: readonly Role[]; onInspect: (role: Role) => void }) {
+  const { card } = useRuleCards()
   return (
     <ul className="match-card-list">
       {ROLES.map(role => {

@@ -1,6 +1,7 @@
 import { useId, useRef, useState } from 'react'
+import { useRuleCards } from './CardRules.tsx'
 import { Art } from './CardTile.tsx'
-import { card, type Role } from './cards.ts'
+import { type Role } from './cards.ts'
 import type { DeckEntry } from './duel.ts'
 import { Sheet } from './Sheet.tsx'
 
@@ -19,6 +20,7 @@ export function DeckViewer({ title, night, hp, initial, remaining, onInspect, on
   onClose: () => void
   onInspect: (role: Role) => void
 }) {
+  const { card } = useRuleCards()
   const [tab, setTab] = useState<Tab>('initial')
   const id = useId()
   const buttons = useRef<(HTMLButtonElement | null)[]>([])

@@ -59,13 +59,13 @@ test('new Curse rules and in-flight legacy rooms both replay with their original
   const second = deck(['witch', 'witch', 'hunter'])
   const word = () => 0xffffffff
   const room = newRoom(first)
-  assert.equal(room.version, 4)
-  // A room created earlier but not yet started adopts the current version.
+  assert.equal(room.version, 5)
+  // Existing lobby rooms retain their original version.
   room.version = 1
   applyCommand(room, 1, { kind: 'deck', cards: second }, true, word)
   applyCommand(room, 0, { kind: 'ready' }, true, word)
   applyCommand(room, 1, { kind: 'ready' }, true, word)
-  assert.equal(room.version, 4)
+  assert.equal(room.version, 1)
   for (const version of [1, 2, 3, 4] as const) {
     const live = { ...structuredClone(room), version }
     const play = (side: 0 | 1, ...roles: Role[]) => {

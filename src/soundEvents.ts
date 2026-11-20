@@ -23,7 +23,7 @@ function resolvedEffects(log: readonly LogEntry[], night: number) {
   const active = new Set<Effect>()
   for (const { night: entryNight, text } of log) {
     if (entryNight !== night) continue
-    if (/の騎士が\d+ダメージ軽減|の(?:狩人|罠師)が襲撃を防|の猫又が反撃/.test(text)) active.add('defense')
+    if (/の騎士が\d+ダメージ軽減|の(?:狩人|罠師)が襲撃を防|の罠師が(?:襲撃を\d+軽減|特殊\d+ダメージで反撃)|の猫又が反撃/.test(text)) active.add('defense')
     const draw = text.match(/は(\d+)枚引いた。$/)
     // The engine logs both normal draws first. Later draws are card effects.
     if (draw && (++normalDraws > 2 && Number(draw[1]) > 0)) active.add('special')

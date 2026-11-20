@@ -921,3 +921,10 @@ html:has(.online-sheet[open], .online-battle ~ .sheet[open]) { overflow: hidden;
   .online-log .log, .chronicle .log { max-height: min(45dvh, 22rem); }
   .online-actions button, .online-form input, .online-form button { min-height: 44px; }
 }
+
+.history-unread { display: inline-block; width: 6px; height: 6px; margin-left: 9px; border-radius: 50%; background: #d1ad66; vertical-align: middle; }
+.release-history article { line-height: 1.75; overflow-wrap: anywhere; }
+.release-history time { color: #d1ad66; }
+.release-history h3 { font-size: 1.05rem; }
+.release-history dt { margin-top: 14px; color: #d1ad66; }
+.release-history dd { margin: 4px 0 0; }

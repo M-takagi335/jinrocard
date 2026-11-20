@@ -655,7 +655,8 @@ function App() {
       )}
       {preview && <CardDetail {...preview} onClose={() => setPreview(null)} />}
       {soundSettings && <SoundSettings onClose={() => setSoundSettings(false)}
-        showStatistics={statisticsEnabled && page === 'home' && !duel && !online} />}
+        showStatistics={statisticsEnabled && page === 'home' && !duel && !online}
+        showHistory={page === 'home' && !duel && !online} />}
     </main><footer className="wrap footer">
       {page === 'home' && !duel && !online ? <>
         <div className="footer-identity">◈　人狼十五夜 <span>JINRO JUGOYA</span></div>

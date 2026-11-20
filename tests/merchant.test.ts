@@ -102,7 +102,7 @@ test('online replay preserves the Merchant cost of each started rules version', 
   applyCommand(room,1,{kind:'deck',cards:guest},true,word)
   applyCommand(room,0,{kind:'ready'},true,word)
   applyCommand(room,1,{kind:'ready'},true,word)
-  assert.equal(room.version,4)
+  assert.equal(room.version,5)
   for (const version of [1,2,3,4] as const) {
     const live = { ...structuredClone(room), version }
     const ours = gameView(live,0)!

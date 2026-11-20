@@ -1,5 +1,5 @@
 import { createClient, type Session } from '@supabase/supabase-js'
-import type { OnlineView } from './onlineProtocol.ts'
+import { trapRulesVersion, type OnlineView } from './onlineProtocol.ts'
 
 const unavailable = '現在オンライン対戦を利用できません。NPC対戦は引き続き遊べます。'
 let guestSession: Promise<Session> | undefined
@@ -46,7 +46,7 @@ export function onlineClient() {
         const response = await fetch(url.replace(/\/$/, '') + '/functions/v1/online-duel', {
           method: 'POST', headers: { 'Content-Type': 'application/json', apikey: key,
             Authorization: 'Bearer ' + credentials.access_token },
-          body: JSON.stringify(payload), signal: AbortSignal.timeout(12000),
+          body: JSON.stringify({ ...payload, clientRulesVersion: trapRulesVersion }), signal: AbortSignal.timeout(12000),
         })
         const result = await response.json()
         if (!response.ok) throw new OnlineError(result.message ?? unavailable, !!result.gone, response.status >= 500 || response.status === 429)

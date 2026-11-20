@@ -11,7 +11,7 @@ export type Command =
 type Event = [Play[], Play[]] | number | 'next'
 type Seats<T> = [T, T]
 export type RoomState = {
-  version: 1 | 2 | 3 | 4
+  version: 1 | 2 | 3 | 4 | 5
   phase: 'lobby' | 'playing' | 'finished'
   decks: Seats<Role[] | null>
   ready: Seats<boolean>
@@ -29,7 +29,13 @@ function demand(test: unknown, message: string): asserts test {
 }
 const seats = [0, 1] as const
 export const spyDrawRulesVersion = 4
-const currentRulesVersion = spyDrawRulesVersion
+export const trapRulesVersion = 5
+const currentRulesVersion = trapRulesVersion
+// Old tabs can continue old rooms, but must refresh before using the new rules.
+export function requireClientRules(clientVersion: unknown, roomVersion: number) {
+  if (roomVersion >= trapRulesVersion && clientVersion !== trapRulesVersion)
+    throw new RoomError('新しいルールに対応するため、ページを再読み込みしてください。既存ルームの情報は保持されます。')
+}
 export function newRoom(cards: Role[]): RoomState {
   demand(validDeck(cards), '有効な20枚のデッキを選んでください。')
   return { version: currentRulesVersion, phase: 'lobby', decks: [[...cards], null], ready: [false, false],
@@ -38,12 +44,12 @@ export function newRoom(cards: Role[]): RoomState {
 }
 const randomWord = () => crypto.getRandomValues(new Uint32Array(1))[0]
 export function replay(room: RoomState, extend = false, word = randomWord): Duel {
-  if ((room.version !== 1 && room.version !== 2 && room.version !== 3 && room.version !== spyDrawRulesVersion)
+  if ((room.version !== 1 && room.version !== 2 && room.version !== 3 && room.version !== spyDrawRulesVersion && room.version !== trapRulesVersion)
     || !room.decks[0] || !room.decks[1]) throw new Error('Invalid replay')
   let index = 0
   const duel = new Duel(room.decks[0], room.decks[1], { twoHumans: true,
     legacyCurse: room.version === 1, legacyMerchant: room.version < 3,
-    legacySpy: room.version < spyDrawRulesVersion, rng: () => {
+    legacySpy: room.version < spyDrawRulesVersion, legacyTrap: room.version < trapRulesVersion, rng: () => {
     if (index === room.tape.length && extend) room.tape.push(word())
     const value = room.tape[index++]
     if (value === undefined) throw new Error('Missing randomness')
@@ -79,7 +85,6 @@ export function applyCommand(room: RoomState, side: Side, command: Command, join
     demand(joined && room.decks[side], '相手の参加と自分のデッキ選択が必要です。')
     room.ready[side] = true
     if (room.ready.every(Boolean)) {
-      room.version = currentRulesVersion
       room.phase = 'playing'
       replay(room, true, word)
     }

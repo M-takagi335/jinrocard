@@ -1,3 +1,4 @@
+import { LegacyTrapRules } from './CardRules.tsx'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { playEffects, setMusic } from './audio.ts'
 import { battleTrack } from './soundEvents.ts'
@@ -400,7 +401,7 @@ export default function OnlineMatch({ options, onClose }: { options: MatchDeck[]
   const viewed = viewedSide === undefined ? undefined : game?.players[viewedSide]
   if (!client) return <Sheet title="オンライン対戦" className="online-sheet" onClose={close}><p>現在オンライン対戦を利用できません。NPC対戦は引き続き遊べます。</p></Sheet>
 
-  return <>
+  return <LegacyTrapRules.Provider value={!!room && (room.rulesVersion ?? 4) < 5}>
     {!game || !room ? (
       <Sheet title="オンライン対戦" className="online-sheet" onClose={close}>
         {!room && !connectedRoom && <>
@@ -439,6 +440,7 @@ export default function OnlineMatch({ options, onClose }: { options: MatchDeck[]
       <p role="status">{degraded ? '再接続中…' : !room.connected[opponent] && !room.left[opponent] ? '相手は切断中です。再接続をお待ちください。' : ''}</p>
       {(error || syncError) && <p className="notice" role="alert">{error || syncError}</p>}
       {(retry || degraded) && <button className="quiet" disabled={busy} onClick={() => retry ? void send(...retry) : reconnect()}>再試行</button>}
+      {room && (room.rulesVersion ?? 4) < 5 && <p className="hint">このルームは旧ルールです。罠師は襲撃をすべて防ぎ、特殊2で反撃します。</p>}
       {legacySpy && <p className="hint">
         この対戦は開始時のルールを使用します。密偵は条件成立時に1枚引きます。
         {room.rulesVersion && room.rulesVersion < 3 && '商人の消費は2HPです。'}
@@ -523,5 +525,5 @@ export default function OnlineMatch({ options, onClose }: { options: MatchDeck[]
     {peek && <CardDetail role={peek}
       effect={legacySpy && peek === 'spy' ? '相手が攻撃カードを出していれば、カードを1枚引く。' : undefined}
       onClose={() => setPeek(undefined)} />}
-  </>
+  </LegacyTrapRules.Provider>
 }

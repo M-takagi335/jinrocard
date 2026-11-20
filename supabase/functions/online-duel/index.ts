@@ -1,5 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.119.0'
-import { applyCommand, gameView, newRoom, parseCommand, RoomError, type OnlineView, type RoomState } from '../../../src/onlineProtocol.ts'
+import { applyCommand, gameView, newRoom, trapRulesVersion, requireClientRules, parseCommand, RoomError, type OnlineView, type RoomState } from '../../../src/onlineProtocol.ts'
 import type { Side } from '../../../src/duel.ts'
 
 type Row = {
@@ -81,7 +81,11 @@ Deno.serve(async req => {
         const { data: previous, error: lookupError } = await db.from('online_rooms').select('*')
           .eq('host_id', uid).eq('request_id', request).maybeSingle()
         if (lookupError) throw lookupError
-        if (previous) return live(previous) ? json(view(previous, 0)) : unavailable()
+        if (previous) {
+          requireClientRules(input.clientRulesVersion, previous.state.version)
+          return live(previous) ? json(view(previous, 0)) : unavailable()
+        }
+        requireClientRules(input.clientRulesVersion, trapRulesVersion)
         const invite = Array.from(crypto.getRandomValues(new Uint8Array(10)), byte => alphabet[byte & 31]).join('')
         const { data, error } = await db.from('online_rooms').insert({
           code: invite, host_id: uid, request_id: request, state: newRoom(deck.cards),
@@ -105,6 +109,7 @@ Deno.serve(async req => {
       if (joining && (row.guest_id || row.state.phase !== 'lobby' || row.state.left.some(Boolean)))
         return json({ message: 'ルームが満員か、受付を終了しています。' }, 409)
       if (!joining && row.state.left[side!] && command?.kind !== 'leave') return unavailable()
+      if (command?.kind !== 'leave') requireClientRules(input.clientRulesVersion, row.state.version)
       if (op === 'status' || op === 'join' && !joining) {
         const { data, error } = await db.rpc('online_touch', { p_id: row.id, p_uid: uid })
         if (error) throw error

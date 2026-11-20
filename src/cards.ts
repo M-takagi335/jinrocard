@@ -1,6 +1,6 @@
 export const RULES = { hp: 20, deckSize: 20, opening: 5, nightlyDraw: 1, handRefill: 2, handLimit: 7, maxPlays: 2, finalNight: 15, finalTieBreak: 'hp' } as const
 type Category = 'attack' | 'guard' | 'intel' | 'supply' | 'hex'
-type Spec = { name: string; category: Category; limit: number; icon: string; text: string; power?: number; lowHp?: number; boosted?: number; recoil?: number }
+type Spec = { name: string; category: Category; limit: number; icon: string; text: string; power?: number; lowHp?: number; boosted?: number; recoil?: number; raidReduction?: number }
 const CARD_DEFINITIONS = {
   wolf: { name:'人狼', category:'attack', limit:3, icon:'狼', power:3, text:'相手に襲撃で3ダメージ。' },
   dire: { name:'大狼', category:'attack', limit:2, icon:'牙', power:5, recoil:2, text:'相手に襲撃で5ダメージ。自分に2ダメージ。' },
@@ -10,7 +10,7 @@ const CARD_DEFINITIONS = {
   hunter: { name:'狩人', category:'guard', limit:3, icon:'弓', text:'この夜、相手から受ける襲撃ダメージをすべて無効化。特殊ダメージは防げない。' },
   knight: { name:'騎士', category:'guard', limit:2, icon:'盾', power:2, text:'この夜、相手から受けるダメージを合計2軽減。特殊ダメージにも有効。' },
   witch: { name:'魔女', category:'guard', limit:2, icon:'薬', power:4, text:'HPを4回復。攻撃後にHPが0なら回復できない。' },
-  trap: { name:'罠師', category:'guard', limit:2, icon:'罠', power:2, text:'相手が襲撃した場合、襲撃を無効化し、特殊攻撃で2ダメージを返す。' },
+  trap: { name:'罠師', category:'guard', limit:2, icon:'罠', power:2, raidReduction:3, text:'その夜の襲撃ダメージを合計3軽減し、襲撃された場合は特殊2ダメージで反撃する。' },
   seer: { name:'占い師', category:'intel', limit:2, icon:'瞳', power:1, text:'相手の残り手札からランダムに1枚を自分だけが確認。' },
   prophet: { name:'預言者', category:'intel', limit:2, icon:'星', power:3, text:'相手の山札の上から最大3枚、自分だけが確認。順序は変わらない。' },
   spy: { name:'密偵', category:'intel', limit:2, icon:'影', power:2, text:'相手が攻撃カードを出していれば、カードを2枚引く。' },
@@ -39,7 +39,7 @@ export const CARD_SUMMARY: Record<Role, string> = {
   hunter: '襲撃をすべて防ぐ',
   knight: '夜のダメージを合計2軽減',
   witch: '生存時にHP4回復',
-  trap: '襲撃を防ぎ特殊2で反撃',
+  trap: '襲撃3軽減・特殊2反撃',
   seer: '相手の残り手札を最大1枚見る',
   prophet: '相手の山札の上から最大3枚を見る',
   spy: CARDS.spy.text,

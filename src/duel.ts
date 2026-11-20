@@ -36,7 +36,7 @@ function composition(roles: readonly Role[]): readonly DeckEntry[] {
 export type NpcView = { hand: readonly Instance[]; hp:number; enemyHp:number; max:number; noHeal:boolean; discard:readonly Instance[]; enemyDiscard:readonly Instance[]; enemyDeck:readonly DeckEntry[]; enemyRemaining:readonly DeckEntry[] }
 type Config = { hp:number; deckSize:number; opening:number; nightlyDraw:number; handRefill:number; handLimit:number; maxPlays:number; finalNight:number; finalTieBreak:'hp'|'draw' }
 type IntelDraw = Readonly<Partial<Record<'seer' | 'prophet', number>>>
-type Options = { rng?:()=>number; rules?:Partial<Config>; npc?: (view:NpcView)=>Play[]; intelDraw?: IntelDraw; npcDifficulty?: NpcDifficulty; twoHumans?: boolean; legacyCurse?: boolean; legacyMerchant?: boolean; legacySpy?: boolean }
+type Options = { rng?:()=>number; rules?:Partial<Config>; npc?: (view:NpcView)=>Play[]; intelDraw?: IntelDraw; npcDifficulty?: NpcDifficulty; twoHumans?: boolean; legacyCurse?: boolean; legacyMerchant?: boolean; legacySpy?: boolean; legacyTrap?: boolean }
 export function shuffle<T>(input:readonly T[], rng:()=>number): T[] {
   const a = [...input]
   for(let i=a.length-1;i>0;i--) { const j=Math.floor(rng()*(i+1)); [a[i],a[j]]=[a[j],a[i]] }
@@ -78,8 +78,10 @@ function chooseBasicNpc(view:NpcView, rng:()=>number, easy:boolean, pairRate:num
   const extra = Math.min(RULES.handLimit, Math.max(RULES.handRefill, left + card('spy').power!))
     - Math.max(RULES.handRefill, left)
   const spyBonus = attackChance * extra * .25
+  const pressure = view.enemyRemaining.reduce((sum, entry) => sum + (['wolf', 'dire', 'fox'].includes(entry.role) ? card(entry.role).power! * entry.count : 0), 0) / Math.max(1, remaining) * 1.5
+  const trapPenalty = Math.max(0, pressure - card('trap').raidReduction!) * .6
   const ranked = view.hand.map(c => ({c, score:value(c.role,view.hp,view.noHeal,view.discard.length)
-    + (c.role === 'spy' ? spyBonus : 0) + rng()*3 - (easy ? easyPenalty(c.role) : 0)}))
+    + (c.role === 'spy' ? spyBonus : 0) - (c.role === 'trap' ? trapPenalty : 0) + rng()*3 - (easy ? easyPenalty(c.role) : 0)}))
     .sort((a,b)=>b.score-a.score)
   const amount = Math.min(view.max, ranked.length, ranked[1]?.score >= 3 && rng() < pairRate ? 2 : 1)
   const move = ranked.slice(0,amount)
@@ -96,6 +98,7 @@ export class Duel {
   private readonly legacyCurse: boolean
   private readonly merchantCost: number
   private readonly spyDraw: number
+  private readonly trapReduction: number
   private readonly investigations: [InvestigationSnapshot[], InvestigationSnapshot[]] = [[], []]
   private readonly revisions = [0, 0]
   private hpChanges: [HpChange, HpChange] = [{ lost: 0, gained: 0 }, { lost: 0, gained: 0 }]
@@ -128,6 +131,7 @@ export class Duel {
     this.legacyCurse = options.legacyCurse ?? false
     this.merchantCost = options.legacyMerchant ? 2 : card('merchant').recoil!
     this.spyDraw = options.legacySpy ? 1 : card('spy').power!
+    this.trapReduction = options.legacyTrap ? Infinity : card('trap').raidReduction!
     const basic = this.npcDifficulty === 'easy' ? chooseEasyNpc : chooseNpc
     this.npc = options.npc ?? (this.npcDifficulty === 'strong'
       ? view => chooseStrongNpc(this.withPublicContext(1, view), this.rng)
@@ -387,7 +391,16 @@ export class Duel {
       }
       if(raid && count(target,'trap')) {
         returns[i]+=count(target,'trap')*card('trap').power!
-        this.write(who[target]+'の罠師が襲撃を防ぎ、反撃した。'); raid=0
+        if (this.trapReduction === Infinity) {
+            this.write(who[target]+'の罠師が襲撃を防ぎ、反撃した。'); raid=0
+          } else if (count(target,'hunter')) {
+            this.write(who[target]+'の狩人が襲撃を防いだ。'); raid=0
+            this.write(who[target]+'の罠師が特殊'+(count(target,'trap')*card('trap').power!)+'ダメージで反撃した。')
+          } else {
+            const blocked = Math.min(raid, count(target,'trap')*this.trapReduction)
+            raid-=blocked
+            this.write(who[target]+'の罠師が襲撃を'+blocked+'軽減し、特殊'+(count(target,'trap')*card('trap').power!)+'ダメージで反撃した。')
+          }
       } else if(raid && count(target,'hunter')) {
         this.write(who[target]+'の狩人が襲撃を防いだ。'); raid=0
       }

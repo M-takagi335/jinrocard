@@ -1,5 +1,6 @@
 import { Art } from './CardTile.tsx'
-import { card, CATEGORY, type Role } from './cards.ts'
+import { CATEGORY, type Role } from './cards.ts'
+import { useRuleCards } from './CardRules.tsx'
 import { Sheet } from './Sheet.tsx'
 
 export function CardDetail({ role, effect, action, onClose }: {
@@ -8,6 +9,7 @@ export function CardDetail({ role, effect, action, onClose }: {
   action?: { label: string; run: () => void }
   onClose: () => void
 }) {
+  const { card } = useRuleCards()
   const spec = card(role)
   return (
     <Sheet title={spec.name} onClose={onClose}

@@ -75,14 +75,14 @@ function predict(view: StrongNpcView, rng: () => number): Scenario[] {
 }
 
 type Effects = {
-  raid: number; special: number; recoil: number; shield: number; blocksRaid: boolean
+  raid: number; special: number; recoil: number; shield: number; blocksRaid: boolean; raidLimit: number
   trap: number; cat: number; heal: number; blocksHealing: boolean; merchant: number; supplies: number; future: number
 }
 
 // A compact one-night projection. Only the engine resolves the actual effects.
 function project(roles: readonly Role[], guess: Role | undefined, enemy: readonly Role[], hp: number,
   noHeal: boolean, hasDiscard: boolean, maxHp: number) {
-  const result: Effects = { raid: 0, special: 0, recoil: 0, shield: 0, blocksRaid: false,
+  const result: Effects = { raid: 0, special: 0, recoil: 0, shield: 0, blocksRaid: false, raidLimit: 0,
     trap: 0, cat: 0, heal: 0, blocksHealing: false, merchant: 0, supplies: 0, future: 0 }
   const enemyAttacks = enemy.some(role => card(role).category === 'attack')
   for (const role of roles) {
@@ -95,7 +95,7 @@ function project(roles: readonly Role[], guess: Role | undefined, enemy: readonl
       case 'assassin': if (guess && enemy.includes(guess)) result.special += spec.power!; break
       case 'cat': result.cat += spec.power!; break
       case 'hunter': result.blocksRaid = true; break
-      case 'trap': result.blocksRaid = true; result.trap += spec.power!; break
+      case 'trap': result.raidLimit += spec.raidReduction!; result.trap += spec.power!; break
       case 'knight': result.shield += spec.power!; break
       case 'witch': if (!noHeal) result.heal += spec.power!; break
       case 'merchant': result.merchant += spec.recoil!; result.supplies += spec.power!; break
@@ -120,8 +120,8 @@ function enabled(roles: readonly Role[], opponent: readonly Role[], cancel: read
 }
 
 function healthAfter(a: Effects, b: Effects, hp: number, enemyHp: number, maxHp: number) {
-  const incoming = (a.blocksRaid ? 0 : b.raid) + b.special + (a.raid ? b.trap : 0)
-  const outgoing = (b.blocksRaid ? 0 : a.raid) + a.special + (b.raid ? a.trap : 0)
+  const incoming = (a.blocksRaid ? 0 : Math.max(0, b.raid - a.raidLimit)) + b.special + (a.raid ? b.trap : 0)
+  const outgoing = (b.blocksRaid ? 0 : Math.max(0, a.raid - b.raidLimit)) + a.special + (b.raid ? a.trap : 0)
   const ownHit = Math.max(0, incoming - a.shield)
   const enemyHit = Math.max(0, outgoing - b.shield)
   const ownCounter = enemyHit ? Math.max(0, b.cat - Math.max(0, a.shield - incoming)) : 0

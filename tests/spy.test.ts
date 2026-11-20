@@ -67,7 +67,7 @@ test('online replays keep the Spy draw and card instance IDs pinned to their sta
   applyCommand(room,1,{kind:'deck',cards:second},true,seed)
   applyCommand(room,0,{kind:'ready'},true,seed)
   applyCommand(room,1,{kind:'ready'},true,seed)
-  assert.equal(room.version,4)
+  assert.equal(room.version,5)
   for(const version of [1,2,3,4] as const){
     const saved={...structuredClone(room),version}
     const direct=new Duel(first,second,{twoHumans:true,rng,legacySpy:version<4})

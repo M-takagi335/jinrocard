@@ -1,5 +1,7 @@
 import { useState } from 'react'
-import { card, CARD_SUMMARY, CATEGORY, type Role } from './cards.ts'
+import { card, CATEGORY, type Role } from './cards.ts'
+
+import { useRuleCards } from './CardRules.tsx'
 
 const reported = new Set<string>()
 
@@ -50,6 +52,7 @@ export function CardTile({ role, selected = false, disabled = false, recoveryBlo
   compact?: boolean
 }) {
   const spec = card(role)
+  const { summary } = useRuleCards()
   const status = disabled ? '効果無効' : recoveryBlocked ? '回復無効' : detail
   const body = (
     <>
@@ -57,7 +60,7 @@ export function CardTile({ role, selected = false, disabled = false, recoveryBlo
       <CardCategory category={spec.category} />
       <span className="card-caption">
         <span className="card-name">{spec.name}</span>
-        {compact && <span className="compact-effect">{CARD_SUMMARY[role]}</span>}
+        {compact && <span className="compact-effect">{summary(role)}</span>}
         {status && <span className="card-detail">{status}</span>}
       </span>
     </>

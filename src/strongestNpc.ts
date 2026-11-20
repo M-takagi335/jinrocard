@@ -143,7 +143,7 @@ export function projectNight(committed: Pair<readonly Action[]>, hp: Pair<number
     }
     if (attack) {
       trap[i] = count(enemy, 'trap') * card('trap').power!
-      if (trap[i] || count(enemy, 'hunter')) attack = 0
+      attack = count(enemy, 'hunter') ? 0 : Math.max(0, attack - count(enemy, 'trap') * card('trap').raidReduction!)
     }
     damage[enemy] = hit(enemy, attack + special)
   }

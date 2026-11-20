@@ -1,0 +1,727 @@
+{
+  "games": 1536,
+  "seed": "0x20b6; mix 0x1718c",
+  "pairsPerDeck": 16,
+  "rows": [
+    {
+      "left": "easy",
+      "right": "standard",
+      "type": "standard",
+      "games": 32,
+      "wins": 12,
+      "losses": 19,
+      "draws": 1,
+      "winRate": 0.375,
+      "ci95": [
+        0.2335491840485417,
+        0.5164508159514583
+      ],
+      "averageNight": 14.3125
+    },
+    {
+      "left": "easy",
+      "right": "standard",
+      "type": "rush",
+      "games": 32,
+      "wins": 7,
+      "losses": 20,
+      "draws": 5,
+      "winRate": 0.21875,
+      "ci95": [
+        0.06460754694655554,
+        0.37289245305344443
+      ],
+      "averageNight": 9.21875
+    },
+    {
+      "left": "easy",
+      "right": "standard",
+      "type": "defense",
+      "games": 32,
+      "wins": 5,
+      "losses": 21,
+      "draws": 6,
+      "winRate": 0.15625,
+      "ci95": [
+        0.008740466409794367,
+        0.30375953359020563
+      ],
+      "averageNight": 15
+    },
+    {
+      "left": "easy",
+      "right": "standard",
+      "type": "intel",
+      "games": 32,
+      "wins": 12,
+      "losses": 16,
+      "draws": 4,
+      "winRate": 0.375,
+      "ci95": [
+        0.2335491840485417,
+        0.5164508159514583
+      ],
+      "averageNight": 14.65625
+    },
+    {
+      "left": "easy",
+      "right": "standard",
+      "type": "combo",
+      "games": 32,
+      "wins": 8,
+      "losses": 22,
+      "draws": 2,
+      "winRate": 0.25,
+      "ci95": [
+        0.09504839465174941,
+        0.4049516053482506
+      ],
+      "averageNight": 11.96875
+    },
+    {
+      "left": "easy",
+      "right": "standard",
+      "type": "random",
+      "games": 32,
+      "wins": 6,
+      "losses": 24,
+      "draws": 2,
+      "winRate": 0.1875,
+      "ci95": [
+        0.03581089909511187,
+        0.33918910090488813
+      ],
+      "averageNight": 10.375
+    },
+    {
+      "left": "easy",
+      "right": "standard",
+      "type": "D343",
+      "games": 32,
+      "wins": 4,
+      "losses": 27,
+      "draws": 1,
+      "winRate": 0.125,
+      "ci95": [
+        0.015432669102510316,
+        0.23456733089748968
+      ],
+      "averageNight": 13.28125
+    },
+    {
+      "left": "easy",
+      "right": "standard",
+      "type": "D272",
+      "games": 32,
+      "wins": 8,
+      "losses": 10,
+      "draws": 14,
+      "winRate": 0.25,
+      "ci95": [
+        0.07107729788164574,
+        0.42892270211835426
+      ],
+      "averageNight": 15
+    },
+    {
+      "left": "easy",
+      "right": "strong",
+      "type": "standard",
+      "games": 32,
+      "wins": 4,
+      "losses": 26,
+      "draws": 2,
+      "winRate": 0.125,
+      "ci95": [
+        0.015432669102510316,
+        0.23456733089748968
+      ],
+      "averageNight": 13.28125
+    },
+    {
+      "left": "easy",
+      "right": "strong",
+      "type": "rush",
+      "games": 32,
+      "wins": 5,
+      "losses": 25,
+      "draws": 2,
+      "winRate": 0.15625,
+      "ci95": [
+        0.03896517929984858,
+        0.27353482070015145
+      ],
+      "averageNight": 8.96875
+    },
+    {
+      "left": "easy",
+      "right": "strong",
+      "type": "defense",
+      "games": 32,
+      "wins": 1,
+      "losses": 30,
+      "draws": 1,
+      "winRate": 0.03125,
+      "ci95": [
+        0,
+        0.0925
+      ],
+      "averageNight": 13.25
+    },
+    {
+      "left": "easy",
+      "right": "strong",
+      "type": "intel",
+      "games": 32,
+      "wins": 5,
+      "losses": 21,
+      "draws": 6,
+      "winRate": 0.15625,
+      "ci95": [
+        0.008740466409794367,
+        0.30375953359020563
+      ],
+      "averageNight": 14.3125
+    },
+    {
+      "left": "easy",
+      "right": "strong",
+      "type": "combo",
+      "games": 32,
+      "wins": 2,
+      "losses": 27,
+      "draws": 3,
+      "winRate": 0.0625,
+      "ci95": [
+        0,
+        0.14618343125533673
+      ],
+      "averageNight": 11.6875
+    },
+    {
+      "left": "easy",
+      "right": "strong",
+      "type": "random",
+      "games": 32,
+      "wins": 5,
+      "losses": 24,
+      "draws": 3,
+      "winRate": 0.15625,
+      "ci95": [
+        0.008740466409794367,
+        0.30375953359020563
+      ],
+      "averageNight": 9.90625
+    },
+    {
+      "left": "easy",
+      "right": "strong",
+      "type": "D343",
+      "games": 32,
+      "wins": 2,
+      "losses": 29,
+      "draws": 1,
+      "winRate": 0.0625,
+      "ci95": [
+        0,
+        0.14618343125533673
+      ],
+      "averageNight": 11.90625
+    },
+    {
+      "left": "easy",
+      "right": "strong",
+      "type": "D272",
+      "games": 32,
+      "wins": 4,
+      "losses": 16,
+      "draws": 12,
+      "winRate": 0.125,
+      "ci95": [
+        0.015432669102510316,
+        0.23456733089748968
+      ],
+      "averageNight": 15
+    },
+    {
+      "left": "easy",
+      "right": "strongest",
+      "type": "standard",
+      "games": 32,
+      "wins": 4,
+      "losses": 27,
+      "draws": 1,
+      "winRate": 0.125,
+      "ci95": [
+        0.015432669102510316,
+        0.23456733089748968
+      ],
+      "averageNight": 13.5
+    },
+    {
+      "left": "easy",
+      "right": "strongest",
+      "type": "rush",
+      "games": 32,
+      "wins": 2,
+      "losses": 26,
+      "draws": 4,
+      "winRate": 0.0625,
+      "ci95": [
+        0,
+        0.14618343125533673
+      ],
+      "averageNight": 7.03125
+    },
+    {
+      "left": "easy",
+      "right": "strongest",
+      "type": "defense",
+      "games": 32,
+      "wins": 3,
+      "losses": 26,
+      "draws": 3,
+      "winRate": 0.09375,
+      "ci95": [
+        0,
+        0.19251265741665724
+      ],
+      "averageNight": 14.40625
+    },
+    {
+      "left": "easy",
+      "right": "strongest",
+      "type": "intel",
+      "games": 32,
+      "wins": 6,
+      "losses": 24,
+      "draws": 2,
+      "winRate": 0.1875,
+      "ci95": [
+        0.03581089909511187,
+        0.33918910090488813
+      ],
+      "averageNight": 13.0625
+    },
+    {
+      "left": "easy",
+      "right": "strongest",
+      "type": "combo",
+      "games": 32,
+      "wins": 1,
+      "losses": 27,
+      "draws": 4,
+      "winRate": 0.03125,
+      "ci95": [
+        0,
+        0.0925
+      ],
+      "averageNight": 10.34375
+    },
+    {
+      "left": "easy",
+      "right": "strongest",
+      "type": "random",
+      "games": 32,
+      "wins": 2,
+      "losses": 26,
+      "draws": 4,
+      "winRate": 0.0625,
+      "ci95": [
+        0,
+        0.14618343125533673
+      ],
+      "averageNight": 10.28125
+    },
+    {
+      "left": "easy",
+      "right": "strongest",
+      "type": "D343",
+      "games": 32,
+      "wins": 3,
+      "losses": 26,
+      "draws": 3,
+      "winRate": 0.09375,
+      "ci95": [
+        0,
+        0.19251265741665724
+      ],
+      "averageNight": 11.71875
+    },
+    {
+      "left": "easy",
+      "right": "strongest",
+      "type": "D272",
+      "games": 32,
+      "wins": 4,
+      "losses": 13,
+      "draws": 15,
+      "winRate": 0.125,
+      "ci95": [
+        0.015432669102510316,
+        0.23456733089748968
+      ],
+      "averageNight": 15
+    },
+    {
+      "left": "standard",
+      "right": "strong",
+      "type": "standard",
+      "games": 32,
+      "wins": 3,
+      "losses": 26,
+      "draws": 3,
+      "winRate": 0.09375,
+      "ci95": [
+        0,
+        0.22700687912199255
+      ],
+      "averageNight": 13.40625
+    },
+    {
+      "left": "standard",
+      "right": "strong",
+      "type": "rush",
+      "games": 32,
+      "wins": 4,
+      "losses": 21,
+      "draws": 7,
+      "winRate": 0.125,
+      "ci95": [
+        0.015432669102510316,
+        0.23456733089748968
+      ],
+      "averageNight": 7.625
+    },
+    {
+      "left": "standard",
+      "right": "strong",
+      "type": "defense",
+      "games": 32,
+      "wins": 4,
+      "losses": 26,
+      "draws": 2,
+      "winRate": 0.125,
+      "ci95": [
+        0.015432669102510316,
+        0.23456733089748968
+      ],
+      "averageNight": 14.3125
+    },
+    {
+      "left": "standard",
+      "right": "strong",
+      "type": "intel",
+      "games": 32,
+      "wins": 12,
+      "losses": 18,
+      "draws": 2,
+      "winRate": 0.375,
+      "ci95": [
+        0.20763313748932657,
+        0.5423668625106735
+      ],
+      "averageNight": 12.71875
+    },
+    {
+      "left": "standard",
+      "right": "strong",
+      "type": "combo",
+      "games": 32,
+      "wins": 4,
+      "losses": 23,
+      "draws": 5,
+      "winRate": 0.125,
+      "ci95": [
+        0.015432669102510316,
+        0.23456733089748968
+      ],
+      "averageNight": 11
+    },
+    {
+      "left": "standard",
+      "right": "strong",
+      "type": "random",
+      "games": 32,
+      "wins": 10,
+      "losses": 18,
+      "draws": 4,
+      "winRate": 0.3125,
+      "ci95": [
+        0.13639515433507607,
+        0.4886048456649239
+      ],
+      "averageNight": 11.40625
+    },
+    {
+      "left": "standard",
+      "right": "strong",
+      "type": "D343",
+      "games": 32,
+      "wins": 9,
+      "losses": 21,
+      "draws": 2,
+      "winRate": 0.28125,
+      "ci95": [
+        0.10302758511717258,
+        0.4594724148828274
+      ],
+      "averageNight": 11.28125
+    },
+    {
+      "left": "standard",
+      "right": "strong",
+      "type": "D272",
+      "games": 32,
+      "wins": 7,
+      "losses": 14,
+      "draws": 11,
+      "winRate": 0.21875,
+      "ci95": [
+        0.06460754694655554,
+        0.37289245305344443
+      ],
+      "averageNight": 15
+    },
+    {
+      "left": "standard",
+      "right": "strongest",
+      "type": "standard",
+      "games": 32,
+      "wins": 4,
+      "losses": 28,
+      "draws": 0,
+      "winRate": 0.125,
+      "ci95": [
+        0,
+        0.2664508159514583
+      ],
+      "averageNight": 13.4375
+    },
+    {
+      "left": "standard",
+      "right": "strongest",
+      "type": "rush",
+      "games": 32,
+      "wins": 0,
+      "losses": 28,
+      "draws": 4,
+      "winRate": 0,
+      "ci95": [
+        0,
+        0
+      ],
+      "averageNight": 6.78125
+    },
+    {
+      "left": "standard",
+      "right": "strongest",
+      "type": "defense",
+      "games": 32,
+      "wins": 4,
+      "losses": 27,
+      "draws": 1,
+      "winRate": 0.125,
+      "ci95": [
+        0.015432669102510316,
+        0.23456733089748968
+      ],
+      "averageNight": 13.78125
+    },
+    {
+      "left": "standard",
+      "right": "strongest",
+      "type": "intel",
+      "games": 32,
+      "wins": 5,
+      "losses": 23,
+      "draws": 4,
+      "winRate": 0.15625,
+      "ci95": [
+        0.008740466409794367,
+        0.30375953359020563
+      ],
+      "averageNight": 13.34375
+    },
+    {
+      "left": "standard",
+      "right": "strongest",
+      "type": "combo",
+      "games": 32,
+      "wins": 5,
+      "losses": 27,
+      "draws": 0,
+      "winRate": 0.15625,
+      "ci95": [
+        0.008740466409794367,
+        0.30375953359020563
+      ],
+      "averageNight": 12
+    },
+    {
+      "left": "standard",
+      "right": "strongest",
+      "type": "random",
+      "games": 32,
+      "wins": 7,
+      "losses": 23,
+      "draws": 2,
+      "winRate": 0.21875,
+      "ci95": [
+        0.06460754694655554,
+        0.37289245305344443
+      ],
+      "averageNight": 10.9375
+    },
+    {
+      "left": "standard",
+      "right": "strongest",
+      "type": "D343",
+      "games": 32,
+      "wins": 6,
+      "losses": 24,
+      "draws": 2,
+      "winRate": 0.1875,
+      "ci95": [
+        0.03581089909511187,
+        0.33918910090488813
+      ],
+      "averageNight": 12.15625
+    },
+    {
+      "left": "standard",
+      "right": "strongest",
+      "type": "D272",
+      "games": 32,
+      "wins": 2,
+      "losses": 16,
+      "draws": 14,
+      "winRate": 0.0625,
+      "ci95": [
+        0,
+        0.14618343125533673
+      ],
+      "averageNight": 15
+    },
+    {
+      "left": "strong",
+      "right": "strongest",
+      "type": "standard",
+      "games": 32,
+      "wins": 10,
+      "losses": 20,
+      "draws": 2,
+      "winRate": 0.3125,
+      "ci95": [
+        0.16081089909511187,
+        0.46418910090488813
+      ],
+      "averageNight": 13.84375
+    },
+    {
+      "left": "strong",
+      "right": "strongest",
+      "type": "rush",
+      "games": 32,
+      "wins": 8,
+      "losses": 10,
+      "draws": 14,
+      "winRate": 0.25,
+      "ci95": [
+        0.12348254402389106,
+        0.376517455976109
+      ],
+      "averageNight": 7.84375
+    },
+    {
+      "left": "strong",
+      "right": "strongest",
+      "type": "defense",
+      "games": 32,
+      "wins": 13,
+      "losses": 17,
+      "draws": 2,
+      "winRate": 0.40625,
+      "ci95": [
+        0.2729931208780074,
+        0.5395068791219926
+      ],
+      "averageNight": 14.53125
+    },
+    {
+      "left": "strong",
+      "right": "strongest",
+      "type": "intel",
+      "games": 32,
+      "wins": 12,
+      "losses": 16,
+      "draws": 4,
+      "winRate": 0.375,
+      "ci95": [
+        0.20763313748932657,
+        0.5423668625106735
+      ],
+      "averageNight": 13.6875
+    },
+    {
+      "left": "strong",
+      "right": "strongest",
+      "type": "combo",
+      "games": 32,
+      "wins": 11,
+      "losses": 16,
+      "draws": 5,
+      "winRate": 0.34375,
+      "ci95": [
+        0.1712321869100662,
+        0.5162678130899339
+      ],
+      "averageNight": 11.125
+    },
+    {
+      "left": "strong",
+      "right": "strongest",
+      "type": "random",
+      "games": 32,
+      "wins": 10,
+      "losses": 15,
+      "draws": 7,
+      "winRate": 0.3125,
+      "ci95": [
+        0.16081089909511187,
+        0.46418910090488813
+      ],
+      "averageNight": 10.34375
+    },
+    {
+      "left": "strong",
+      "right": "strongest",
+      "type": "D343",
+      "games": 32,
+      "wins": 11,
+      "losses": 17,
+      "draws": 4,
+      "winRate": 0.34375,
+      "ci95": [
+        0.1712321869100662,
+        0.5162678130899339
+      ],
+      "averageNight": 12.375
+    },
+    {
+      "left": "strong",
+      "right": "strongest",
+      "type": "D272",
+      "games": 32,
+      "wins": 8,
+      "losses": 10,
+      "draws": 14,
+      "winRate": 0.25,
+      "ci95": [
+        0.09504839465174941,
+        0.4049516053482506
+      ],
+      "averageNight": 15
+    }
+  ]
+}
